@@ -51,6 +51,14 @@ const nodeTypes: NodeType[] = [
         category: 'Blockchain'
       },
       {
+        id: 'base',
+        title: 'Base',
+        description: 'Build on Base - Ethereum L2 network',
+        icon: '🔵',
+        iconImage: '/baselogo.png',
+        category: 'Blockchain'
+      },
+      {
         id: 'blockscout',
         title: 'Blockscout',
         description: 'Explore and verify blockchain data',

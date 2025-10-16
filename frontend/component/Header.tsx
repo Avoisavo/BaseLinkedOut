@@ -1,6 +1,9 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useAccount, useConnect, useDisconnect, useSwitchChain } from 'wagmi';
+import { baseSepolia } from 'wagmi/chains';
+import { useEffect } from 'react';
 
 interface HeaderProps {
   title?: string;
@@ -9,6 +12,28 @@ interface HeaderProps {
 
 export default function Header({ title = 'LinkedOut', showBackButton = false }: HeaderProps) {
   const router = useRouter();
+  const { address, isConnected, chain } = useAccount();
+  const { connect, connectors } = useConnect();
+  const { disconnect } = useDisconnect();
+  const { switchChain } = useSwitchChain();
+
+  // Auto-switch to Base Sepolia if connected to wrong network
+  useEffect(() => {
+    if (isConnected && chain?.id !== baseSepolia.id) {
+      switchChain?.({ chainId: baseSepolia.id });
+    }
+  }, [isConnected, chain, switchChain]);
+
+  const handleConnect = () => {
+    const connector = connectors[0]; // Use the first available connector (usually injected)
+    if (connector) {
+      connect({ connector, chainId: baseSepolia.id });
+    }
+  };
+
+  const formatAddress = (addr: string) => {
+    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  };
 
   return (
     <div 
@@ -118,38 +143,98 @@ export default function Header({ title = 'LinkedOut', showBackButton = false }: 
 
       {/* Right Side - Connect Wallet */}
       <div className="flex items-center gap-4">
-        <button
-          className="px-6 py-2.5 rounded-lg font-semibold transition-all hover:scale-105 flex items-center gap-2"
-          style={{
-            fontFamily: "'Orbitron', sans-serif",
-            background: 'linear-gradient(135deg, rgba(100, 150, 200, 0.5), rgba(80, 120, 180, 0.6))',
-            border: '1px solid rgba(150, 180, 220, 0.4)',
-            color: '#ffffff',
-            backdropFilter: 'blur(15px)',
-            boxShadow: `
-              0 8px 24px rgba(80, 120, 180, 0.3),
-              inset 0 1px 2px rgba(255, 255, 255, 0.2),
-              0 0 30px rgba(100, 150, 200, 0.25)
-            `,
-            letterSpacing: '0.05em',
-            fontSize: '14px',
-          }}
-        >
-          <svg 
-            className="w-5 h-5" 
-            fill="none" 
-            stroke="currentColor" 
-            viewBox="0 0 24 24"
+        {!isConnected ? (
+          <button
+            onClick={handleConnect}
+            className="px-6 py-2.5 rounded-lg font-semibold transition-all hover:scale-105 flex items-center gap-2"
+            style={{
+              fontFamily: "'Orbitron', sans-serif",
+              background: 'linear-gradient(135deg, rgba(100, 150, 200, 0.5), rgba(80, 120, 180, 0.6))',
+              border: '1px solid rgba(150, 180, 220, 0.4)',
+              color: '#ffffff',
+              backdropFilter: 'blur(15px)',
+              boxShadow: `
+                0 8px 24px rgba(80, 120, 180, 0.3),
+                inset 0 1px 2px rgba(255, 255, 255, 0.2),
+                0 0 30px rgba(100, 150, 200, 0.25)
+              `,
+              letterSpacing: '0.05em',
+              fontSize: '14px',
+            }}
           >
-            <path 
-              strokeLinecap="round" 
-              strokeLinejoin="round" 
-              strokeWidth={2} 
-              d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" 
-            />
-          </svg>
-          Connect Wallet
-        </button>
+            <svg 
+              className="w-5 h-5" 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth={2} 
+                d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" 
+              />
+            </svg>
+            Connect Wallet
+          </button>
+        ) : (
+          <div className="flex items-center gap-3">
+            {/* Network Badge */}
+            <div
+              className="px-3 py-2 rounded-lg flex items-center gap-2"
+              style={{
+                background: chain?.id === baseSepolia.id 
+                  ? 'rgba(34, 197, 94, 0.2)' 
+                  : 'rgba(239, 68, 68, 0.2)',
+                border: chain?.id === baseSepolia.id
+                  ? '1px solid rgba(34, 197, 94, 0.4)'
+                  : '1px solid rgba(239, 68, 68, 0.4)',
+              }}
+            >
+              <div
+                className="w-2 h-2 rounded-full"
+                style={{
+                  background: chain?.id === baseSepolia.id ? '#22c55e' : '#ef4444',
+                }}
+              />
+              <span
+                className="text-sm font-medium"
+                style={{
+                  color: chain?.id === baseSepolia.id ? '#22c55e' : '#ef4444',
+                }}
+              >
+                {chain?.name || 'Unknown'}
+              </span>
+            </div>
+
+            {/* Address Display */}
+            <div
+              className="px-4 py-2 rounded-lg font-mono text-sm"
+              style={{
+                background: 'rgba(60, 60, 70, 0.5)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                color: '#e0e8f0',
+              }}
+            >
+              {address && formatAddress(address)}
+            </div>
+
+            {/* Disconnect Button */}
+            <button
+              onClick={() => disconnect()}
+              className="px-4 py-2 rounded-lg font-semibold transition-all hover:scale-105"
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                background: 'rgba(239, 68, 68, 0.2)',
+                border: '1px solid rgba(239, 68, 68, 0.4)',
+                color: '#ef4444',
+                fontSize: '14px',
+              }}
+            >
+              Disconnect
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Fonts */}
