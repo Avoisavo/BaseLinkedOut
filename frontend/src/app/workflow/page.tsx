@@ -10,15 +10,18 @@ import WorkflowNode from './workflowComponents/WorkflowNode';
 import CredentialModal from './workflowComponents/CredentialModal';
 import NodeTestPanel from './workflowComponents/NodeTestPanel';
 import AIAgentNode from './workflowComponents/AIAgentNode';
+import BaseNode from './baseNodes/BaseNode';
 import ModelSelectionModal from './workflowComponents/ModelSelectionModal';
 import IfNodeConfig from './workflowComponents/IfNodeConfig';
 import HederaNode from './hederaComponents/hederaNode';
+import PythPriceFeedModal from './pythHermes/PythPriceFeedModal';
 
 interface SubNode {
   id: string;
   type: 'model' | 'memory' | 'tool';
   title: string;
   icon: string;
+  iconImage?: string;
   required?: boolean;
 }
 
@@ -63,6 +66,8 @@ export default function WorkflowPage() {
   const [showIfConfig, setShowIfConfig] = useState(false);
   const [selectedIfNodeId, setSelectedIfNodeId] = useState<string | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
+  const [showPythModal, setShowPythModal] = useState(false);
+  const [selectedPythNodeId, setSelectedPythNodeId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
 
   const handleAddNode = (nodeType: any) => {
@@ -73,6 +78,23 @@ export default function WorkflowPage() {
         type: 'ai-agent',
         title: 'AI Agent',
         icon: '🤖',
+        position: { x: 300, y: nodes.length * 150 + 100 },
+        inputs: {},
+        subNodes: []
+      };
+      setNodes([...nodes, newNode]);
+      setIsPanelOpen(false);
+      return;
+    }
+
+    // Special handling for Base node
+    if (nodeType.id === 'base') {
+      const newNode: WorkflowNode = {
+        id: Date.now().toString(),
+        type: 'base-node',
+        title: 'Base',
+        icon: '🔵',
+        iconImage: '/baselogo.png',
         position: { x: 300, y: nodes.length * 150 + 100 },
         inputs: {},
         subNodes: []
@@ -204,17 +226,25 @@ export default function WorkflowPage() {
     setSavedCredential(null);
   };
 
-  const handleAddSubNode = (nodeId: string, type: 'model' | 'memory' | 'tool') => {
-    if (type === 'model') {
+  const handleAddSubNode = (
+    nodeId: string,
+    type: 'model' | 'memory' | 'tool',
+    directAdd?: { title: string; icon?: string; iconImage?: string; required?: boolean }
+  ) => {
+    if (type === 'model' && !directAdd) {
       setSelectedAINodeId(nodeId);
       setShowModelSelection(true);
     } else {
       // For memory and tool, add placeholder for now
+      const parentNode = nodes.find(n => n.id === nodeId);
+      const isBaseNode = parentNode?.type === 'base-node';
       const newSubNode: SubNode = {
         id: Date.now().toString(),
         type: type,
-        title: type === 'memory' ? 'Memory' : 'Tool',
-        icon: type === 'memory' ? '💾' : '🔧',
+        title: directAdd?.title || (type === 'memory' ? (isBaseNode ? 'Smart Contract' : 'Memory') : 'Tool'),
+        icon: directAdd?.icon || (type === 'memory' ? (isBaseNode ? '📜' : '💾') : '🔧'),
+        iconImage: directAdd?.iconImage,
+        required: directAdd?.required,
       };
 
       setNodes(prevNodes =>
@@ -384,6 +414,14 @@ export default function WorkflowPage() {
     if (nodeType === 'if') {
       setSelectedIfNodeId(nodeId);
       setShowIfConfig(true);
+    }
+  };
+
+  const handleSubNodeClick = (nodeId: string, subNode: SubNode) => {
+    // Check if it's a Pyth Price Feed
+    if (subNode.title === 'Pyth Price Feeds') {
+      setSelectedPythNodeId(nodeId);
+      setShowPythModal(true);
     }
   };
 
@@ -631,6 +669,17 @@ export default function WorkflowPage() {
                 onRemoveSubNode={handleRemoveSubNode}
                 onConnectNext={handleConnectNext}
               />
+            ) : node.type === 'base-node' ? (
+              <BaseNode
+                key={node.id}
+                node={node}
+                onMouseDown={handleMouseDown}
+                onDelete={handleDeleteNode}
+                onAddSubNode={handleAddSubNode}
+                onRemoveSubNode={handleRemoveSubNode}
+                onConnectNext={handleConnectNext}
+                onSubNodeClick={handleSubNodeClick}
+              />
             ) : node.type === 'hedera-node' ? (
               <HederaNode
                 key={node.id}
@@ -783,6 +832,15 @@ export default function WorkflowPage() {
           setSelectedIfNodeId(null);
         }}
         nodeData={nodes.find(n => n.id === selectedIfNodeId)}
+      />
+
+      {/* Pyth Price Feed Modal */}
+      <PythPriceFeedModal
+        isOpen={showPythModal}
+        onClose={() => {
+          setShowPythModal(false);
+          setSelectedPythNodeId(null);
+        }}
       />
 
       {/* Fonts */}

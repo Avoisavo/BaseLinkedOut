@@ -79,5 +79,8 @@
   "overrides": {
     "ethers": "^5.7.2",
     "hardhat-deploy": "^0.12.1"
+  },
+  "dependencies": {
+    "@pythnetwork/pyth-sdk-solidity": "^4.2.0"
   }
 }
