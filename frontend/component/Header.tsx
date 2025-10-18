@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useAccount, useConnect, useDisconnect, useSwitchChain } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 interface HeaderProps {
   title?: string;
@@ -16,6 +16,12 @@ export default function Header({ title = 'LinkedOut', showBackButton = false }: 
   const { connect, connectors } = useConnect();
   const { disconnect } = useDisconnect();
   const { switchChain } = useSwitchChain();
+  const [mounted, setMounted] = useState(false);
+
+  // Prevent hydration mismatch by only rendering wallet UI after mount
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Auto-switch to Base Sepolia if connected to wrong network
   useEffect(() => {
@@ -143,7 +149,10 @@ export default function Header({ title = 'LinkedOut', showBackButton = false }: 
 
       {/* Right Side - Connect Wallet */}
       <div className="flex items-center gap-4">
-        {!isConnected ? (
+        {!mounted ? (
+          // Render a placeholder during SSR to prevent hydration mismatch
+          <div className="px-6 py-2.5 rounded-lg" style={{ width: '160px', height: '42px' }} />
+        ) : !isConnected ? (
           <button
             onClick={handleConnect}
             className="px-6 py-2.5 rounded-lg font-semibold transition-all hover:scale-105 flex items-center gap-2"
