@@ -5,6 +5,7 @@ import { useState } from 'react';
 interface NodeType {
   id: string;
   title: string;
+  subtitle?: string;
   description: string;
   icon: string;
   iconImage?: string; // Path to image file
@@ -37,6 +38,7 @@ const nodeTypes: NodeType[] = [
       {
         id: 'hedera',
         title: 'Hedera',
+        subtitle: 'Blockchain action',
         description: 'Interact with Hedera Hashgraph network',
         icon: '🔷',
         iconImage: '/hederalogo.png',
@@ -45,6 +47,7 @@ const nodeTypes: NodeType[] = [
       {
         id: 'avail',
         title: 'Avail',
+        subtitle: 'Data availability',
         description: 'Connect to Avail data availability layer',
         icon: '🔶',
         iconImage: '/availlogo.png',
@@ -53,6 +56,7 @@ const nodeTypes: NodeType[] = [
       {
         id: 'base',
         title: 'Base',
+        subtitle: 'Blockchain action',
         description: 'Build on Base - Ethereum L2 network',
         icon: '🔵',
         iconImage: '/baselogo.png',
@@ -61,6 +65,7 @@ const nodeTypes: NodeType[] = [
       {
         id: 'blockscout',
         title: 'Blockscout',
+        subtitle: 'Explorer',
         description: 'Explore and verify blockchain data',
         icon: '🔍',
         iconImage: '/blockscoutlogo.png',
@@ -69,6 +74,7 @@ const nodeTypes: NodeType[] = [
       {
         id: 'hardhat',
         title: 'Hardhat',
+        subtitle: 'Development tool',
         description: 'Deploy and test smart contracts',
         icon: '⚒️',
         iconImage: '/hardhatlogo.png',
@@ -77,6 +83,7 @@ const nodeTypes: NodeType[] = [
       {
         id: 'envio',
         title: 'Envio',
+        subtitle: 'Indexer',
         description: 'Index and query blockchain data',
         icon: '📊',
         iconImage: '/enviologo.png',
