@@ -36,7 +36,17 @@ const nodeTypes: NodeType[] = [
     title: 'Action in an app',
     description: 'Do something in an app or service like Google Sheets, Telegram or Notion',
     icon: '🌐',
-    category: 'Action'
+    category: 'Action',
+    subNodes: [
+      {
+        id: 'telegram-notification',
+        title: 'Telegram',
+        subtitle: 'Notification',
+        description: 'Send notifications via Telegram',
+        icon: '📱',
+        category: 'Action'
+      }
+    ]
   },
   {
     id: 'blockchain',
@@ -97,6 +107,15 @@ const nodeTypes: NodeType[] = [
         description: 'Index and query blockchain data',
         icon: '📊',
         iconImage: '/enviologo.png',
+        category: 'Blockchain'
+      },
+      {
+        id: 'pyth-network',
+        title: 'Pyth Network',
+        subtitle: 'Oracle',
+        description: 'Access real-time price feeds from Pyth Network',
+        icon: '🔮',
+        iconImage: '/pythlogo.png',
         category: 'Blockchain'
       }
     ]

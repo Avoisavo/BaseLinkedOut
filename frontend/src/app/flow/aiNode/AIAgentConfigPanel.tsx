@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import TelegramCredentialModal from '../triggerNode/TelegramCredentialModal';
 
 interface AIAgentConfigPanelProps {
   isOpen: boolean;
@@ -10,6 +11,11 @@ interface AIAgentConfigPanelProps {
     memory?: string;
     remark?: string;
     prompt?: string;
+    parentNode?: {
+      type: string;
+      data: any;
+      name: string;
+    };
   };
   onSave?: (data: any) => void;
 }
@@ -24,8 +30,56 @@ export default function AIAgentConfigPanel({
   const [prompt, setPrompt] = useState(nodeData?.prompt || '');
   const [outputFormat, setOutputFormat] = useState(false);
   const [fallbackMode, setFallbackMode] = useState(false);
+  const [isTelegramModalOpen, setIsTelegramModalOpen] = useState(false);
+  const [telegramOutput, setTelegramOutput] = useState<any>(null);
+  const [isLoadingOutput, setIsLoadingOutput] = useState(false);
 
   if (!isOpen) return null;
+
+  // Execute previous node - fetch real data from Telegram
+  const handleExecutePreviousNode = () => {
+    if (nodeData?.parentNode?.type === 'telegram-trigger') {
+      // If we already have the bot token from parent, fetch updates
+      if (nodeData.parentNode.data.botToken) {
+        fetchTelegramUpdates(nodeData.parentNode.data.botToken);
+      } else {
+        // Otherwise, open modal to get token
+        setIsTelegramModalOpen(true);
+      }
+    }
+  };
+
+  // Fetch actual Telegram updates
+  const fetchTelegramUpdates = async (token: string) => {
+    setIsLoadingOutput(true);
+    try {
+      const response = await fetch(`https://api.telegram.org/bot${token}/getUpdates?limit=1&offset=-1`);
+      const data = await response.json();
+      
+      if (data.ok && data.result && data.result.length > 0) {
+        setTelegramOutput(data.result[0]);
+      } else {
+        setTelegramOutput({ 
+          message: 'No messages yet. Send a message to your bot to see data here.',
+          isEmpty: true 
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching Telegram updates:', error);
+      setTelegramOutput({ 
+        error: 'Failed to fetch Telegram data. Please check your bot token.',
+        isEmpty: true 
+      });
+    } finally {
+      setIsLoadingOutput(false);
+    }
+  };
+
+  // Handle Telegram credential submission
+  const handleTelegramSubmit = (token: string, botInfo: any) => {
+    setIsTelegramModalOpen(false);
+    fetchTelegramUpdates(token);
+  };
 
   const handleSave = () => {
     if (onSave) {
@@ -88,7 +142,140 @@ export default function AIAgentConfigPanel({
             </h2>
           </div>
 
-          <div className="flex-1 p-6">
+          <div className="flex-1 p-6 overflow-y-auto">
+            {nodeData?.parentNode ? (
+              <div
+                className="p-4 rounded-lg border border-gray-300 bg-white"
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                }}
+              >
+                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-200">
+                  <div
+                    className="w-6 h-6 rounded flex items-center justify-center"
+                    style={{
+                      background: nodeData.parentNode.type === 'telegram-trigger' 
+                        ? 'linear-gradient(135deg, #10b981, #059669)' 
+                        : 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                    }}
+                  >
+                    {nodeData.parentNode.type === 'telegram-trigger' ? (
+                      <svg className="w-4 h-4" fill="white" viewBox="0 0 24 24">
+                        <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.14.18-.357.295-.6.295-.002 0-.003 0-.005 0l.213-3.054 5.56-5.022c.24-.213-.054-.334-.373-.121l-6.869 4.326-2.96-.924c-.64-.203-.654-.64.135-.954l11.566-4.458c.538-.196 1.006.128.832.941z"/>
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4" fill="white" viewBox="0 0 24 24">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
+                      </svg>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold" style={{ color: '#6b7280' }}>
+                      INPUT FROM
+                    </p>
+                    <p className="text-sm font-bold" style={{ color: '#1f2937' }}>
+                      {nodeData.parentNode.name}
+                    </p>
+                  </div>
+                  {!telegramOutput && (
+                    <button
+                      onClick={handleExecutePreviousNode}
+                      disabled={isLoadingOutput}
+                      className="px-3 py-1.5 rounded-lg border border-gray-300 text-xs font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+                      style={{
+                        color: '#374151',
+                        fontFamily: "'Inter', sans-serif",
+                      }}
+                    >
+                      {isLoadingOutput ? 'Loading...' : 'Execute'}
+                    </button>
+                  )}
+                </div>
+
+                {nodeData.parentNode.type === 'telegram-trigger' && (
+                  <div className="space-y-2">
+                    {/* Bot Info */}
+                    {nodeData.parentNode.data.botInfo && (
+                      <div className="bg-gray-50 p-3 rounded">
+                        <p className="text-xs font-semibold text-gray-500 mb-1">Bot Info</p>
+                        <p className="text-sm font-medium text-gray-900">
+                          @{nodeData.parentNode.data.botInfo.username || 'bot'}
+                        </p>
+                        <p className="text-xs text-gray-600">
+                          {nodeData.parentNode.data.botInfo.first_name || 'Telegram Bot'}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Trigger Type */}
+                    <div className="bg-gray-50 p-3 rounded">
+                      <p className="text-xs font-semibold text-gray-500 mb-1">Trigger Type</p>
+                      <p className="text-sm font-medium text-gray-900">
+                        {nodeData.parentNode.data.triggerType?.replace(/-/g, ' ').toUpperCase() || 'MESSAGE'}
+                      </p>
+                    </div>
+
+                    {/* Actual Output Data from Telegram */}
+                    {telegramOutput && !telegramOutput.isEmpty ? (
+                      <div className="bg-green-50 p-3 rounded border border-green-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-semibold text-green-700">Live Data</p>
+                          <button
+                            onClick={handleExecutePreviousNode}
+                            className="text-xs text-green-700 hover:underline"
+                          >
+                            Refresh
+                          </button>
+                        </div>
+                        <div className="bg-white p-2 rounded text-xs font-mono overflow-auto max-h-48">
+                          <pre className="text-gray-800 whitespace-pre-wrap">
+                            {JSON.stringify(telegramOutput, null, 2)}
+                          </pre>
+                        </div>
+                        {telegramOutput.message && (
+                          <div className="mt-2 space-y-1">
+                            <p className="text-xs text-green-800">
+                              <strong>Message:</strong> {telegramOutput.message.text || 'N/A'}
+                            </p>
+                            <p className="text-xs text-green-800">
+                              <strong>From:</strong> @{telegramOutput.message.from?.username || 'Unknown'}
+                            </p>
+                            <p className="text-xs text-green-800">
+                              <strong>Chat ID:</strong> {telegramOutput.message.chat?.id || 'N/A'}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ) : telegramOutput?.isEmpty ? (
+                      <div className="bg-yellow-50 p-3 rounded border border-yellow-200">
+                        <p className="text-xs text-yellow-800">
+                          {telegramOutput.message || telegramOutput.error}
+                        </p>
+                        <button
+                          onClick={handleExecutePreviousNode}
+                          className="mt-2 text-xs text-yellow-700 hover:underline font-medium"
+                        >
+                          Try Again
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="bg-blue-50 p-3 rounded border border-blue-200">
+                        <p className="text-xs font-semibold text-blue-700 mb-1">Available Data Fields</p>
+                        <code className="text-xs text-blue-900 block">
+                          {'{{ $json.message.text }}'}
+                        </code>
+                        <code className="text-xs text-blue-900 block mt-1">
+                          {'{{ $json.message.from.username }}'}
+                        </code>
+                        <code className="text-xs text-blue-900 block mt-1">
+                          {'{{ $json.message.chat.id }}'}
+                        </code>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
             <div
               className="p-4 rounded-lg border border-gray-300 bg-white"
               style={{
@@ -97,6 +284,7 @@ export default function AIAgentConfigPanel({
             >
               <p className="text-sm text-gray-600 mb-2">No input data yet</p>
               <button
+                  onClick={handleExecutePreviousNode}
                 className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium hover:bg-gray-50 transition-colors"
                 style={{
                   color: '#374151',
@@ -109,6 +297,7 @@ export default function AIAgentConfigPanel({
                 (From the earliest node that needs it ⓘ)
               </p>
             </div>
+            )}
           </div>
         </div>
 
@@ -289,7 +478,9 @@ export default function AIAgentConfigPanel({
                   >
                     <textarea
                       className="w-full h-full p-4 bg-transparent resize-none focus:outline-none"
-                      placeholder="from the telegram {{ $json.message.text }}, extract from the sentence, user want to swap or bridge?one word reply only"
+                      placeholder={nodeData?.parentNode?.type === 'telegram-trigger' 
+                        ? "From the telegram message {{ $json.message.text }}, extract what the user wants to do. Does the user want to swap or bridge? Reply with one word only."
+                        : "Enter your prompt here. Use {{ $json.field }} to reference data from previous nodes."}
                       value={prompt}
                       onChange={(e) => setPrompt(e.target.value)}
                       style={{
@@ -528,27 +719,74 @@ export default function AIAgentConfigPanel({
             </button>
           </div>
 
-          <div className="flex-1 p-6">
+          <div className="flex-1 p-6 overflow-y-auto">
             <div
-              className="p-6 rounded-lg border border-gray-300 bg-white text-center"
+              className="rounded-lg border border-gray-300 bg-white"
               style={{
                 fontFamily: "'Inter', sans-serif",
               }}
             >
-              <p className="text-sm text-gray-600 mb-2">Execute this node to view data</p>
-              <p className="text-sm mb-4">or</p>
-              <button
-                className="text-sm font-medium hover:underline"
-                style={{
-                  color: '#ef4444',
-                }}
-              >
-                set mock data
-              </button>
+              {telegramOutput && !telegramOutput.isEmpty ? (
+                <div className="p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                      <svg className="w-5 h-5" fill="#10b981" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">Input Data Retrieved</p>
+                      <p className="text-xs text-gray-500">Ready to process with AI Agent</p>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-blue-50 p-3 rounded border border-blue-200 mb-3">
+                    <p className="text-xs font-semibold text-blue-700 mb-1">Sample Output Format</p>
+                    <p className="text-xs text-blue-900">
+                      The AI Agent will analyze the input and return a response based on your prompt configuration.
+                    </p>
+                  </div>
+
+                  {telegramOutput.message?.text && (
+                    <div className="bg-gray-50 p-3 rounded">
+                      <p className="text-xs font-semibold text-gray-600 mb-1">User Message</p>
+                      <p className="text-sm text-gray-900">&quot;{telegramOutput.message.text}&quot;</p>
+                      <p className="text-xs text-gray-500 mt-2">
+                        → Will be processed by AI Agent
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="p-6">
+                  <div className="text-center mb-4">
+                    <svg className="w-12 h-12 mx-auto mb-2" fill="none" stroke="#9ca3af" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <p className="text-sm text-gray-600 mb-2">Execute previous node to view AI response</p>
+                  </div>
+                  
+                  {nodeData?.parentNode && (
+                    <div className="bg-blue-50 p-3 rounded border border-blue-200">
+                      <p className="text-xs font-semibold text-blue-700 mb-1">Expected Output</p>
+                      <p className="text-xs text-blue-900">
+                        AI Agent will process the input from <strong>{nodeData.parentNode.name}</strong> and return a response based on your prompt.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Telegram Credential Modal */}
+      <TelegramCredentialModal
+        isOpen={isTelegramModalOpen}
+        onClose={() => setIsTelegramModalOpen(false)}
+        onSubmit={handleTelegramSubmit}
+      />
     </div>
   );
 }

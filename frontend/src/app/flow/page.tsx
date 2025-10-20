@@ -15,6 +15,8 @@ import AIAgentConfigPanel from './aiNode/AIAgentConfigPanel';
 import IfElseNode from './ifelse/ifelse';
 import IfElseConfigPanel from './ifelse/IfElseConfigPanel';
 import BaseStartNode from './baseNode/baseStartNode';
+import TelegramNode from './telegram/telegramNode';
+import PythNode from './triggerNode/pythNode';
 import { saveWorkflow, getWorkflow, createNewWorkflow, WorkflowData } from '@/lib/workflowStorage';
 
 interface Transform {
@@ -36,6 +38,7 @@ interface Node {
   name: string;
   position: { x: number; y: number };
   parentId?: string; // ID of the parent node this connects from
+  branch?: 'true' | 'false'; // For nodes connected to IfElse nodes
   data: {
     // Telegram node properties
     botToken?: string;
@@ -89,7 +92,9 @@ export default function FlowPage() {
   const [selectedAIAgentNode, setSelectedAIAgentNode] = useState<Node | null>(null);
   const [isIfElseConfigOpen, setIsIfElseConfigOpen] = useState(false);
   const [selectedIfElseNode, setSelectedIfElseNode] = useState<Node | null>(null);
+  const [selectedTelegramNode, setSelectedTelegramNode] = useState<Node | null>(null);
   const [parentNodeId, setParentNodeId] = useState<string | null>(null); // Track which node is adding a child
+  const [parentBranch, setParentBranch] = useState<'true' | 'false' | null>(null); // Track which branch of IfElse node
 
   // Handle node drag start
   const handleNodeMouseDown = (e: ReactMouseEvent<HTMLDivElement>, nodeId: string) => {
@@ -115,7 +120,24 @@ export default function FlowPage() {
   const handleAIAgentDoubleClick = (nodeId: string) => {
     const node = nodes.find(n => n.id === nodeId);
     if (node) {
-      setSelectedAIAgentNode(node);
+      // Find parent node to get input data
+      let parentNodeData = null;
+      if (node.parentId) {
+        const parentNode = nodes.find(n => n.id === node.parentId);
+        if (parentNode) {
+          parentNodeData = {
+            type: parentNode.type,
+            data: parentNode.data,
+            name: parentNode.name,
+          };
+        }
+      }
+      
+      // Add parent data to the selected node
+      setSelectedAIAgentNode({
+        ...node,
+        parentNode: parentNodeData,
+      } as any);
       setIsAIAgentConfigOpen(true);
     }
   };
@@ -137,6 +159,20 @@ export default function FlowPage() {
     if (node) {
       setSelectedIfElseNode(node);
       setIsIfElseConfigOpen(true);
+    }
+  };
+
+  // Handle Telegram Trigger node double click to open configuration
+  const handleTelegramDoubleClick = (nodeId: string) => {
+    const node = nodes.find(n => n.id === nodeId);
+    if (node && node.type === 'telegram-trigger') {
+      // Set the node's data to the state
+      setSelectedTelegramNode(node);
+      setBotToken(node.data.botToken || '');
+      setBotInfo(node.data.botInfo || null);
+      setSelectedTelegramAction(node.data.triggerType || '');
+      // Open the configuration panel
+      setIsNodeConfigOpen(true);
     }
   };
 
@@ -230,32 +266,52 @@ export default function FlowPage() {
 
   // Add node to canvas
   const handleAddNode = () => {
-    const newNode: Node = {
-      id: `node-${Date.now()}`,
-      type: 'telegram-trigger',
-      name: 'Telegram Trigger',
-      position: {
-        x: 400 + (nodes.length * 50),
-        y: 300 + (nodes.length * 50),
-      },
-      data: {
-        botToken: botToken,
-        botInfo: botInfo,
-        triggerType: selectedTelegramAction,
-        icon: 'telegram',
-        color: '#0088cc',
-      },
-    };
+    // Check if we're editing an existing node
+    if (selectedTelegramNode) {
+      // Update existing node
+      setNodes((prev) => prev.map(node => 
+        node.id === selectedTelegramNode.id
+          ? {
+              ...node,
+              data: {
+                ...node.data,
+                botToken: botToken,
+                botInfo: botInfo,
+                triggerType: selectedTelegramAction,
+              }
+            }
+          : node
+      ));
+      console.log('Node updated:', selectedTelegramNode.id);
+    } else {
+      // Create new node
+      const newNode: Node = {
+        id: `node-${Date.now()}`,
+        type: 'telegram-trigger',
+        name: 'Telegram Trigger',
+        position: {
+          x: 400 + (nodes.length * 50),
+          y: 300 + (nodes.length * 50),
+        },
+        data: {
+          botToken: botToken,
+          botInfo: botInfo,
+          triggerType: selectedTelegramAction,
+          icon: 'telegram',
+          color: '#0088cc',
+        },
+      };
 
-    setNodes((prev) => [...prev, newNode]);
+      setNodes((prev) => [...prev, newNode]);
+      console.log('Node added to canvas:', newNode);
+    }
+
     setIsNodeConfigOpen(false);
+    setSelectedTelegramNode(null);
     
     // Show success toast
     setShowSuccessToast(true);
     setTimeout(() => setShowSuccessToast(false), 3000);
-    
-    // Log success
-    console.log('Node added to canvas:', newNode);
   };
 
   // Load workflow on mount
@@ -437,11 +493,14 @@ export default function FlowPage() {
                       onDelete={() => {
                         setNodes((prev) => prev.filter((n) => n.id !== node.id));
                       }}
-                      onAddConnection={() => {
+                      onAddConnection={(branch) => {
                         setParentNodeId(node.id);
+                        setParentBranch(branch || null);
                         setIsNodePanelOpen(true);
+                        console.log(`Opening NodePanel for ${branch} branch of IfElse node:`, node.id);
                       }}
-                      hasChildren={nodes.some(n => n.parentId === node.id)}
+                      hasTrueChild={nodes.some(n => n.parentId === node.id && n.branch === 'true')}
+                      hasFalseChild={nodes.some(n => n.parentId === node.id && n.branch === 'false')}
                       data={node.data}
                     />
                   </div>
@@ -473,6 +532,56 @@ export default function FlowPage() {
                 );
               }
               
+              // Render Telegram Notification Node
+              if (node.type === 'telegram-notification') {
+                return (
+                  <div 
+                    key={node.id}
+                  >
+                    <TelegramNode
+                      id={node.id}
+                      position={node.position}
+                      isDragging={draggedNode === node.id}
+                      onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
+                      onDelete={() => {
+                        setNodes((prev) => prev.filter((n) => n.id !== node.id));
+                      }}
+                      onAddConnection={() => {
+                        setParentNodeId(node.id);
+                        setIsNodePanelOpen(true);
+                      }}
+                      hasChildren={nodes.some(n => n.parentId === node.id)}
+                      data={node.data}
+                    />
+                  </div>
+                );
+              }
+              
+              // Render Pyth Network Node
+              if (node.type === 'pyth-network') {
+                return (
+                  <div 
+                    key={node.id}
+                  >
+                    <PythNode
+                      id={node.id}
+                      position={node.position}
+                      isDragging={draggedNode === node.id}
+                      onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
+                      onDelete={() => {
+                        setNodes((prev) => prev.filter((n) => n.id !== node.id));
+                      }}
+                      onAddConnection={() => {
+                        setParentNodeId(node.id);
+                        setIsNodePanelOpen(true);
+                      }}
+                      hasChildren={nodes.some(n => n.parentId === node.id)}
+                      data={node.data}
+                    />
+                  </div>
+                );
+              }
+              
               // Render default Telegram Trigger Node
               return (
               <div
@@ -485,6 +594,7 @@ export default function FlowPage() {
                   transition: draggedNode === node.id ? 'none' : 'all 0.3s ease',
                   pointerEvents: draggedNode && draggedNode !== node.id ? 'none' : 'auto',
                 }}
+                onDoubleClick={() => handleTelegramDoubleClick(node.id)}
               >
                 {/* Main Node Card */}
                 <div className="flex flex-col items-center">
@@ -493,7 +603,7 @@ export default function FlowPage() {
                     className="relative p-4 transition-all duration-300 group"
                     style={{
                       background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.95) 100%)',
-                      border: '2px solid rgba(16, 185, 129, 0.4)',
+                      border: '2px solid rgba(139, 92, 246, 0.4)',
                       width: '180px',
                       height: '180px',
                       display: 'flex',
@@ -506,7 +616,7 @@ export default function FlowPage() {
                         0 10px 40px rgba(0, 0, 0, 0.4),
                         0 0 0 1px rgba(255, 255, 255, 0.05),
                         inset 0 1px 0 rgba(255, 255, 255, 0.1),
-                        0 0 60px rgba(16, 185, 129, 0.15)
+                        0 0 60px rgba(139, 92, 246, 0.15)
                       `,
                     }}
                     onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
@@ -574,8 +684,8 @@ export default function FlowPage() {
                     <div
                       className="w-28 h-28 rounded-full flex items-center justify-center relative overflow-hidden"
                       style={{
-                        background: 'linear-gradient(135deg, #10b981, #059669)',
-                        boxShadow: '0 8px 24px rgba(16, 185, 129, 0.5), inset 0 2px 0 rgba(255, 255, 255, 0.2)',
+                        background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
+                        boxShadow: '0 8px 24px rgba(139, 92, 246, 0.5), inset 0 2px 0 rgba(255, 255, 255, 0.2)',
                       }}
                     >
                       <svg className="w-16 h-16 relative z-10" fill="white" viewBox="0 0 24 24">
@@ -674,9 +784,9 @@ export default function FlowPage() {
                         <div
                           className="w-6 h-6 rounded-full transition-all duration-300"
                           style={{
-                            background: 'linear-gradient(135deg, #10b981, #059669)',
-                            border: '2px solid rgba(16, 185, 129, 0.5)',
-                            boxShadow: '0 0 20px rgba(16, 185, 129, 0.6), 0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
+                            background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
+                            border: '2px solid rgba(139, 92, 246, 0.5)',
+                            boxShadow: '0 0 20px rgba(139, 92, 246, 0.6), 0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
                           }}
                         />
                         
@@ -685,8 +795,8 @@ export default function FlowPage() {
                           style={{
                             width: '60px',
                             height: '2px',
-                            background: 'linear-gradient(90deg, rgba(16, 185, 129, 0.6), rgba(16, 185, 129, 0.3))',
-                            boxShadow: '0 0 10px rgba(16, 185, 129, 0.4)',
+                            background: 'linear-gradient(90deg, rgba(139, 92, 246, 0.6), rgba(139, 92, 246, 0.3))',
+                            boxShadow: '0 0 10px rgba(139, 92, 246, 0.4)',
                           }}
                         />
 
@@ -696,10 +806,10 @@ export default function FlowPage() {
                           style={{
                             width: '34px',
                             height: '34px',
-                            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.1))',
-                            border: '2px solid rgba(16, 185, 129, 0.4)',
+                            background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(139, 92, 246, 0.1))',
+                            border: '2px solid rgba(139, 92, 246, 0.4)',
                             backdropFilter: 'blur(10px)',
-                            boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+                            boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
                           }}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -707,15 +817,15 @@ export default function FlowPage() {
                             setIsNodePanelOpen(true);
                           }}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.background = 'linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(16, 185, 129, 0.2))';
-                            e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.6)';
+                            e.currentTarget.style.background = 'linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(139, 92, 246, 0.2))';
+                            e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.6)';
                           }}
                           onMouseLeave={(e) => {
-                            e.currentTarget.style.background = 'linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.1))';
-                            e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+                            e.currentTarget.style.background = 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(139, 92, 246, 0.1))';
+                            e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.4)';
                           }}
                         >
-                          <svg className="w-5 h-5" fill="none" stroke="#10b981" viewBox="0 0 24 24" strokeWidth={2.5}>
+                          <svg className="w-5 h-5" fill="none" stroke="#a78bfa" viewBox="0 0 24 24" strokeWidth={2.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                           </svg>
                         </button>
@@ -731,7 +841,7 @@ export default function FlowPage() {
                         color: '#e0e8f0',
                         fontFamily: "'Orbitron', sans-serif",
                         fontSize: '15px',
-                        textShadow: '0 0 10px rgba(16, 185, 129, 0.3)',
+                        textShadow: '0 0 10px rgba(139, 92, 246, 0.3)',
                         letterSpacing: '0.05em',
                       }}
                     >
@@ -740,7 +850,7 @@ export default function FlowPage() {
                     <p
                       className="text-xs"
                       style={{
-                        color: '#6ee7b7',
+                        color: '#a78bfa',
                         fontFamily: "'Inter', sans-serif",
                         fontWeight: '400',
                       }}
@@ -785,11 +895,94 @@ export default function FlowPage() {
                 const parentNode = nodes.find(n => n.id === node.parentId);
                 if (!parentNode) return null;
 
-                // Calculate line positions
-                const startX = parentNode.position.x + 80; // Right edge of parent node (moved left)
-                const startY = parentNode.position.y - 30; // Moved up slightly
-                const endX = node.position.x - 150; // Left edge of child node (moved left)
-                const endY = node.position.y - 30; // Moved up slightly
+                // Calculate connection points based on node type
+                let startX, startY, endX, endY;
+                
+                // Parent node output point (right side)
+                if (parentNode.type === 'telegram-trigger') {
+                  startX = parentNode.position.x + 87; // Extended right edge + connection offset
+                  startY = parentNode.position.y - 10; // Move up a bit
+                } else if (parentNode.type === 'ai-agent') {
+                  startX = parentNode.position.x + 217; // Half width + extended connection offset (moved right)
+                  startY = parentNode.position.y - 20; // Move up more
+                } else if (parentNode.type === 'if') {
+                  // IfElse node has two branches: true (30% from top) and false (70% from top)
+                  // Node is 160px tall, positioned with center at position.y
+                  // Connection points are at right: -5px from right edge
+                  startX = parentNode.position.x + 80 - 60 + 60; // Half width (80) + right offset + line width (60)
+                  
+                  if (node.branch === 'true') {
+                    // True branch is at 30% from top
+                    // Node height is 160px, center is at position.y
+                    // 30% from top = -80 (half height) + 48 (30% of 160) = -32, moved up by 20px
+                    startY = parentNode.position.y - 52;
+                  } else if (node.branch === 'false') {
+                    // False branch is at 70% from top
+                    // 70% from top = -80 (half height) + 112 (70% of 160) = +32, moved up by 20px
+                    startY = parentNode.position.y + 12;
+                  } else {
+                    startY = parentNode.position.y - 10; // Default fallback
+                  }
+                } else if (parentNode.type === 'base') {
+                  // Base node: 420px wide, gray circle (w-5 h-5 = 20px) at right: -120px
+                  // Center is at position.x, so right edge is at position.x + 210
+                  // Gray circle is 120px beyond right edge: position.x + 210 + 120 + 10 (center of 20px circle)
+                  startX = parentNode.position.x + 210 + 120 + 10;
+                  startY = parentNode.position.y; // Center of the node (50% top position)
+                } else if (parentNode.type === 'telegram-notification') {
+                  // Telegram notification node: 260px wide, connection at right: -100px
+                  // Center is at position.x, so right edge is at position.x + 130
+                  // Connection point is 100px further right + 60px line: position.x + 130 + 100 + 60
+                  startX = parentNode.position.x + 130 + 100 + 60;
+                  startY = parentNode.position.y; // Center of the node
+                } else if (parentNode.type === 'pyth-network') {
+                  // Pyth Network node: 160px wide, connection at right: -100px
+                  // Center is at position.x, so right edge is at position.x + 80
+                  // Gray circle (w-5 h-5 = 20px) is at the right connection point
+                  // Circle center is at: position.x + 80 (right edge) + 10 (center of 20px circle)
+                  startX = parentNode.position.x + 80; // Move left a bit
+                  startY = parentNode.position.y - 30; // Move up
+                } else {
+                  startX = parentNode.position.x + 120;
+                  startY = parentNode.position.y - 10;
+                }
+                
+                // Child node input point (left side)
+                if (node.type === 'telegram-trigger') {
+                  endX = node.position.x - 87; // Move to the right
+                  endY = node.position.y - 30; // Move up more
+                } else if (node.type === 'ai-agent') {
+                  endX = node.position.x - 200 - 10; // Half width + left connection point (moved right)
+                  endY = node.position.y - 20; // Move up more
+                } else if (node.type === 'if') {
+                  // IfElse node: 160px wide, left connection at -10px from left edge
+                  // Center is at position.x, so left edge is at position.x - 80
+                  // Gray circle (w-5 h-5 = 20px) at left: -10px
+                  // Circle center is at: position.x - 80 (left edge) - 10 + 10 (center of circle) = position.x - 80
+                  endX = node.position.x - 80;
+                  endY = node.position.y - 30; // Move up
+                } else if (node.type === 'base') {
+                  // Base node: 420px wide, left connection at -10px from left edge
+                  // Center is at position.x, so left edge is at position.x - 210
+                  // Connection point moved to the right
+                  endX = node.position.x - 220 + 10;
+                  endY = node.position.y; // Center of the node (50% top position)
+                } else if (node.type === 'telegram-notification') {
+                  // Telegram notification node: 160px wide, left connection at -10px from left edge
+                  // Center is at position.x, so left edge is at position.x - 80
+                  // Connection point is 10px further left: position.x - 80 - 10 = -90
+                  endX = node.position.x - 80 - 10;
+                  endY = node.position.y - 30; // Move up from center
+                } else if (node.type === 'pyth-network') {
+                  // Pyth Network node: 160px wide, left connection at -10px from left edge
+                  // Center is at position.x, so left edge is at position.x - 80
+                  // Connection point is 10px further left: position.x - 80 - 10 = -90
+                  endX = node.position.x - 80 - 10;
+                  endY = node.position.y - 30; // Move up from center
+                } else {
+                  endX = node.position.x - 100;
+                  endY = node.position.y - 30; // Move up more
+                }
 
                 // Create a smooth curve
                 const midX = (startX + endX) / 2;
@@ -798,15 +991,23 @@ export default function FlowPage() {
                   <path
                     key={`connection-${node.id}`}
                     d={`M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX} ${endY}`}
-                    stroke="#9ca3af"
+                    stroke="url(#connectionGradient)"
                     strokeWidth="3"
                     fill="none"
                     style={{
-                      filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))',
+                      filter: 'drop-shadow(0 2px 8px rgba(139, 92, 246, 0.4))',
                     }}
                   />
                 );
               })}
+              
+              {/* Gradient Definition */}
+              <defs>
+                <linearGradient id="connectionGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" style={{ stopColor: '#10b981', stopOpacity: 0.8 }} />
+                  <stop offset="100%" style={{ stopColor: '#8b5cf6', stopOpacity: 0.8 }} />
+                </linearGradient>
+              </defs>
             </svg>
           </div>
         </div>
@@ -1066,6 +1267,7 @@ export default function FlowPage() {
           setBotToken('');
           setBotInfo(null);
           setSelectedTelegramAction('');
+          setSelectedTelegramNode(null);
         }}
         onAddNode={handleAddNode}
         triggerType={selectedTelegramAction}
@@ -1079,9 +1281,11 @@ export default function FlowPage() {
         onClose={() => {
           setIsNodePanelOpen(false);
           setParentNodeId(null);
+          setParentBranch(null);
         }}
         onAddNode={(nodeType) => {
           console.log('Adding node from NodePanel:', nodeType);
+          console.log('Parent branch:', parentBranch);
           
           // Calculate position relative to parent node
           let newPosition = { x: 400 + (nodes.length * 50), y: 300 + (nodes.length * 50) };
@@ -1090,10 +1294,18 @@ export default function FlowPage() {
             const parentNode = nodes.find(n => n.id === parentNodeId);
             if (parentNode) {
               // Position new node to the right of parent
-              newPosition = {
-                x: parentNode.position.x + 400,
-                y: parentNode.position.y,
-              };
+              // If it's an IfElse node, position based on branch
+              if (parentNode.type === 'if' && parentBranch) {
+                newPosition = {
+                  x: parentNode.position.x + 400,
+                  y: parentNode.position.y + (parentBranch === 'true' ? -100 : 100),
+                };
+              } else {
+                newPosition = {
+                  x: parentNode.position.x + 400,
+                  y: parentNode.position.y,
+                };
+              }
             }
           }
           
@@ -1104,6 +1316,7 @@ export default function FlowPage() {
             name: nodeType.title,
             position: newPosition,
             parentId: parentNodeId || undefined,
+            branch: parentBranch || undefined,
             data: {
               icon: nodeType.icon,
               color: '#10b981',
@@ -1113,6 +1326,7 @@ export default function FlowPage() {
           setNodes((prev) => [...prev, newNode]);
           setIsNodePanelOpen(false);
           setParentNodeId(null);
+          setParentBranch(null);
           
           // Show success toast
           setShowSuccessToast(true);

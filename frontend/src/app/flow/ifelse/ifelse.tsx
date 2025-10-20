@@ -8,8 +8,9 @@ interface IfElseNodeProps {
   isDragging?: boolean;
   onMouseDown: (e: React.MouseEvent<HTMLDivElement>) => void;
   onDelete: () => void;
-  onAddConnection?: () => void;
-  hasChildren?: boolean;
+  onAddConnection?: (branch?: 'true' | 'false') => void;
+  hasTrueChild?: boolean;
+  hasFalseChild?: boolean;
   data?: {
     icon?: string;
     color?: string;
@@ -23,7 +24,8 @@ export default function IfElseNode({
   onMouseDown, 
   onDelete,
   onAddConnection,
-  hasChildren,
+  hasTrueChild,
+  hasFalseChild,
   data 
 }: IfElseNodeProps) {
   return (
@@ -103,7 +105,7 @@ export default function IfElseNode({
           <div
             className="absolute"
             style={{
-              left: '-15px',
+              left: '-10px',
               top: '50%',
               transform: 'translateY(-50%)',
             }}
@@ -118,17 +120,32 @@ export default function IfElseNode({
             />
           </div>
 
-          {/* Connection Point - Right Side */}
-          {!hasChildren && (
-            <div
-              className="absolute flex items-center"
+          {/* Connection Point - Right Side TRUE */}
+          <div
+            className="absolute"
+            style={{
+              right: '-5px',
+              top: '30%', 
+              transform: 'translateY(-50%)',
+            }}
+          >
+            {/* True Label - Always visible */}
+            <span
+              className="font-medium"
               style={{
-                right: '-100px',
-                top: '50%', 
-                transform: 'translateY(-50%)',
+                position: 'absolute',
+                left: '28px',
+                top: '-20px',
+                color: '#22c55e',
+                fontSize: '14px',
+                fontFamily: "'Inter', sans-serif",
               }}
             >
-              {/* Gray Circle */}
+              true
+            </span>
+            
+            <div className="flex items-center">
+              {/* Gray Circle - Always visible */}
               <div
                 className="w-5 h-5 rounded-full"
                 style={{
@@ -138,35 +155,112 @@ export default function IfElseNode({
                 }}
               />
               
-              {/* Connecting Line */}
+              {/* Connecting Line and Plus Button - Only when no child */}
+              {!hasTrueChild && (
+                <>
+                  {/* Connecting Line */}
+                  <div
+                    style={{
+                      width: '60px',
+                      height: '3px',
+                      background: '#9ca3af',
+                    }}
+                  />
+
+                  {/* Plus Button */}
+                  <button
+                    className="flex items-center justify-center rounded-lg transition-all hover:bg-gray-200"
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      background: 'white',
+                      border: '2px solid #9ca3af',
+                    }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAddConnection?.('true');
+                    }}
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="#6b7280" viewBox="0 0 24 24" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Connection Point - Right Side FALSE */}
+          <div
+            className="absolute"
+            style={{
+              right: '-5px',
+              top: '70%', 
+              transform: 'translateY(-50%)',
+            }}
+          >
+            {/* False Label - Always visible */}
+            <span
+              className="font-medium"
+              style={{
+                position: 'absolute',
+                left: '28px',
+                top: '-20px',
+                color: '#ef4444',
+                fontSize: '14px',
+                fontFamily: "'Inter', sans-serif",
+              }}
+            >
+              false
+            </span>
+            
+            <div className="flex items-center">
+              {/* Gray Circle - Always visible */}
               <div
+                className="w-5 h-5 rounded-full"
                 style={{
-                  width: '60px',
-                  height: '3px',
-                  background: '#9ca3af',
+                  background: '#6b7280',
+                  border: '3px solid white',
+                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.2)',
                 }}
               />
+              
+              {/* Connecting Line and Plus Button - Only when no child */}
+              {!hasFalseChild && (
+                <>
+                  {/* Connecting Line */}
+                  <div
+                    style={{
+                      width: '60px',
+                      height: '3px',
+                      background: '#9ca3af',
+                    }}
+                  />
 
-              {/* Plus Button */}
-              <button
-                className="flex items-center justify-center rounded-lg transition-all hover:bg-gray-200"
-                style={{
-                  width: '32px',
-                  height: '32px',
-                  background: 'white',
-                  border: '2px solid #9ca3af',
-                }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onAddConnection?.();
-                }}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="#6b7280" viewBox="0 0 24 24" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                </svg>
-              </button>
+                  {/* Plus Button */}
+                  <button
+                    className="flex items-center justify-center rounded-lg transition-all hover:bg-gray-200"
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      background: 'white',
+                      border: '2px solid #9ca3af',
+                    }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAddConnection?.('false');
+                    }}
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="#6b7280" viewBox="0 0 24 24" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                  </button>
+                </>
+              )}
             </div>
-          )}
+          </div>
         </div>
 
         {/* Text Below Card */}
