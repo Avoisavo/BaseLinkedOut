@@ -14,6 +14,7 @@ import AIAgentNode from './aiNode/aiAgent';
 import AIAgentConfigPanel from './aiNode/AIAgentConfigPanel';
 import IfElseNode from './ifelse/ifelse';
 import IfElseConfigPanel from './ifelse/IfElseConfigPanel';
+import BaseStartNode from './baseNode/baseStartNode';
 import { saveWorkflow, getWorkflow, createNewWorkflow, WorkflowData } from '@/lib/workflowStorage';
 
 interface Transform {
@@ -52,6 +53,9 @@ interface Node {
     // IfElse node properties
     conditions?: Condition[];
     convertTypes?: boolean;
+    // Base node properties
+    action?: string;
+    contractAddress?: string;
   };
 }
 
@@ -426,6 +430,31 @@ export default function FlowPage() {
                     onDoubleClick={() => handleIfElseDoubleClick(node.id)}
                   >
                     <IfElseNode
+                      id={node.id}
+                      position={node.position}
+                      isDragging={draggedNode === node.id}
+                      onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
+                      onDelete={() => {
+                        setNodes((prev) => prev.filter((n) => n.id !== node.id));
+                      }}
+                      onAddConnection={() => {
+                        setParentNodeId(node.id);
+                        setIsNodePanelOpen(true);
+                      }}
+                      hasChildren={nodes.some(n => n.parentId === node.id)}
+                      data={node.data}
+                    />
+                  </div>
+                );
+              }
+              
+              // Render Base Node
+              if (node.type === 'base') {
+                return (
+                  <div 
+                    key={node.id}
+                  >
+                    <BaseStartNode
                       id={node.id}
                       position={node.position}
                       isDragging={draggedNode === node.id}
