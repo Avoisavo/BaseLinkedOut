@@ -10,6 +10,10 @@ import NodePanel from './panel/NodePanel';
 import TelegramCredentialModal from './triggerNode/TelegramCredentialModal';
 import TelegramNodeConfig from '../../../component/TelegramNodeConfig';
 import StartButton from './triggerNode/StartNode';
+import AIAgentNode from './aiNode/aiAgent';
+import AIAgentConfigPanel from './aiNode/AIAgentConfigPanel';
+import IfElseNode from './ifelse/ifelse';
+import IfElseConfigPanel from './ifelse/IfElseConfigPanel';
 import { saveWorkflow, getWorkflow, createNewWorkflow, WorkflowData } from '@/lib/workflowStorage';
 
 interface Transform {
@@ -18,17 +22,36 @@ interface Transform {
   scale: number;
 }
 
+interface Condition {
+  id: string;
+  expression: string;
+  operator: string;
+  value: string;
+}
+
 interface Node {
   id: string;
   type: string;
   name: string;
   position: { x: number; y: number };
+  parentId?: string; // ID of the parent node this connects from
   data: {
+    // Telegram node properties
     botToken?: string;
     botInfo?: any;
     triggerType?: string;
     icon?: string;
     color?: string;
+    // AI Agent node properties
+    chatModel?: string;
+    memory?: string;
+    remark?: string;
+    prompt?: string;
+    outputFormat?: boolean;
+    fallbackMode?: boolean;
+    // IfElse node properties
+    conditions?: Condition[];
+    convertTypes?: boolean;
   };
 }
 
@@ -58,6 +81,11 @@ export default function FlowPage() {
   const [draggedNode, setDraggedNode] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null);
+  const [isAIAgentConfigOpen, setIsAIAgentConfigOpen] = useState(false);
+  const [selectedAIAgentNode, setSelectedAIAgentNode] = useState<Node | null>(null);
+  const [isIfElseConfigOpen, setIsIfElseConfigOpen] = useState(false);
+  const [selectedIfElseNode, setSelectedIfElseNode] = useState<Node | null>(null);
+  const [parentNodeId, setParentNodeId] = useState<string | null>(null); // Track which node is adding a child
 
   // Handle node drag start
   const handleNodeMouseDown = (e: ReactMouseEvent<HTMLDivElement>, nodeId: string) => {
@@ -76,6 +104,46 @@ export default function FlowPage() {
           y: mouseY - node.position.y,
         });
       }
+    }
+  };
+
+  // Handle AI Agent node double click to open configuration
+  const handleAIAgentDoubleClick = (nodeId: string) => {
+    const node = nodes.find(n => n.id === nodeId);
+    if (node) {
+      setSelectedAIAgentNode(node);
+      setIsAIAgentConfigOpen(true);
+    }
+  };
+
+  // Handle saving AI Agent configuration
+  const handleSaveAIAgentConfig = (updatedData: any) => {
+    if (selectedAIAgentNode) {
+      setNodes(prev => prev.map(node => 
+        node.id === selectedAIAgentNode.id
+          ? { ...node, data: { ...node.data, ...updatedData } }
+          : node
+      ));
+    }
+  };
+
+  // Handle IfElse node double click to open configuration
+  const handleIfElseDoubleClick = (nodeId: string) => {
+    const node = nodes.find(n => n.id === nodeId);
+    if (node) {
+      setSelectedIfElseNode(node);
+      setIsIfElseConfigOpen(true);
+    }
+  };
+
+  // Handle saving IfElse configuration
+  const handleSaveIfElseConfig = (updatedData: any) => {
+    if (selectedIfElseNode) {
+      setNodes(prev => prev.map(node => 
+        node.id === selectedIfElseNode.id
+          ? { ...node, data: { ...node.data, ...updatedData } }
+          : node
+      ));
     }
   };
 
@@ -323,15 +391,69 @@ export default function FlowPage() {
             }}
           >
             {/* Render Nodes */}
-            {nodes.map((node) => (
+            {nodes.map((node) => {
+              // Render AI Agent Node
+              if (node.type === 'ai-agent') {
+                return (
+                  <div
+                    key={node.id}
+                    onDoubleClick={() => handleAIAgentDoubleClick(node.id)}
+                  >
+                    <AIAgentNode
+                      id={node.id}
+                      position={node.position}
+                      isDragging={draggedNode === node.id}
+                      onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
+                      onDelete={() => {
+                        setNodes((prev) => prev.filter((n) => n.id !== node.id));
+                      }}
+                      onAddConnection={() => {
+                        setParentNodeId(node.id);
+                        setIsNodePanelOpen(true);
+                      }}
+                      hasChildren={nodes.some(n => n.parentId === node.id)}
+                      data={node.data}
+                    />
+                  </div>
+                );
+              }
+              
+              // Render If/Else Node
+              if (node.type === 'if') {
+                return (
+                  <div 
+                    key={node.id}
+                    onDoubleClick={() => handleIfElseDoubleClick(node.id)}
+                  >
+                    <IfElseNode
+                      id={node.id}
+                      position={node.position}
+                      isDragging={draggedNode === node.id}
+                      onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
+                      onDelete={() => {
+                        setNodes((prev) => prev.filter((n) => n.id !== node.id));
+                      }}
+                      onAddConnection={() => {
+                        setParentNodeId(node.id);
+                        setIsNodePanelOpen(true);
+                      }}
+                      hasChildren={nodes.some(n => n.parentId === node.id)}
+                      data={node.data}
+                    />
+                  </div>
+                );
+              }
+              
+              // Render default Telegram Trigger Node
+              return (
               <div
                 key={node.id}
-                className="absolute hover:shadow-2xl"
+                className="absolute"
                 style={{
                   left: `${node.position.x}px`,
                   top: `${node.position.y}px`,
                   transform: 'translate(-50%, -50%)',
-                  transition: draggedNode === node.id ? 'none' : 'all 0.2s',
+                  transition: draggedNode === node.id ? 'none' : 'all 0.3s ease',
                   pointerEvents: draggedNode && draggedNode !== node.id ? 'none' : 'auto',
                 }}
               >
@@ -339,17 +461,24 @@ export default function FlowPage() {
                 <div className="flex flex-col items-center">
                   {/* Node Card */}
                   <div
-                    className="relative p-4 shadow-lg transition-all hover:shadow-xl"
+                    className="relative p-4 transition-all duration-300 group"
                     style={{
-                      background: 'white',
-                      border: '3px solid #9ca3af',
-                      width: '160px',
-                      height: '160px',
+                      background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.95) 100%)',
+                      border: '2px solid rgba(16, 185, 129, 0.4)',
+                      width: '180px',
+                      height: '180px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       borderRadius: '32px',
                       cursor: draggedNode === node.id ? 'grabbing' : 'grab',
+                      backdropFilter: 'blur(20px)',
+                      boxShadow: `
+                        0 10px 40px rgba(0, 0, 0, 0.4),
+                        0 0 0 1px rgba(255, 255, 255, 0.05),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.1),
+                        0 0 60px rgba(16, 185, 129, 0.15)
+                      `,
                     }}
                     onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
                   >
@@ -357,37 +486,56 @@ export default function FlowPage() {
                     <div
                       className="absolute"
                       style={{
-                        top: '12px',
-                        left: '12px',
+                        top: '14px',
+                        left: '14px',
                       }}
                     >
-                      <svg 
-                        className="w-5 h-5" 
-                        fill="#ef4444" 
-                        viewBox="0 0 20 20"
+                      <div
+                        className="w-7 h-7 rounded-lg flex items-center justify-center"
+                        style={{
+                          background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                          boxShadow: '0 0 20px rgba(239, 68, 68, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3)',
+                        }}
                       >
-                        <path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" />
-                      </svg>
+                        <svg 
+                          className="w-4 h-4" 
+                          fill="white" 
+                          viewBox="0 0 20 20"
+                        >
+                          <path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" />
+                        </svg>
+                      </div>
                     </div>
 
                     {/* Delete Button - Top Right */}
                     <button
-                      className="absolute opacity-0 hover:opacity-100 transition-opacity rounded-full p-1 hover:bg-red-50"
+                      className="absolute opacity-0 group-hover:opacity-100 transition-all duration-300 rounded-lg p-2"
                       style={{
-                        top: '8px',
-                        right: '8px',
+                        top: '12px',
+                        right: '12px',
+                        background: 'rgba(239, 68, 68, 0.1)',
+                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                        backdropFilter: 'blur(10px)',
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
                         setNodes((prev) => prev.filter((n) => n.id !== node.id));
                       }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)';
+                        e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.5)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
+                        e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+                      }}
                     >
                       <svg 
-                        className="w-5 h-5" 
+                        className="w-4 h-4" 
                         fill="none" 
                         stroke="#ef4444" 
                         viewBox="0 0 24 24"
-                        strokeWidth={2.5}
+                        strokeWidth={2}
                       >
                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                       </svg>
@@ -395,99 +543,242 @@ export default function FlowPage() {
 
                     {/* Telegram Icon - Center */}
                     <div
-                      className="w-28 h-28 rounded-full flex items-center justify-center"
+                      className="w-28 h-28 rounded-full flex items-center justify-center relative overflow-hidden"
                       style={{
-                        background: 'linear-gradient(135deg, #54a9eb, #41a4e6)',
+                        background: 'linear-gradient(135deg, #10b981, #059669)',
+                        boxShadow: '0 8px 24px rgba(16, 185, 129, 0.5), inset 0 2px 0 rgba(255, 255, 255, 0.2)',
                       }}
                     >
-                      <svg className="w-16 h-16" fill="white" viewBox="0 0 24 24">
+                      <svg className="w-16 h-16 relative z-10" fill="white" viewBox="0 0 24 24">
                         <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.14.18-.357.295-.6.295-.002 0-.003 0-.005 0l.213-3.054 5.56-5.022c.24-.213-.054-.334-.373-.121l-6.869 4.326-2.96-.924c-.64-.203-.654-.64.135-.954l11.566-4.458c.538-.196 1.006.128.832.941z"/>
                       </svg>
+                      {/* Glow effect */}
+                      <div style={{
+                        position: 'absolute',
+                        inset: 0,
+                        background: 'radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.3), transparent)',
+                      }} />
                     </div>
 
-                    {/* Connection Point - Right Side */}
-                    
+                    {/* Lightning Icon - Left Side (Execute Workflow Button) */}
                     <div
-                      className="absolute flex items-center"
+                      className="absolute group"
                       style={{
-                        right: '-100px', //adjust connection line
-                        top: '50%', 
+                        left: '-40px',
+                        top: '50%',
                         transform: 'translateY(-50%)',
                       }}
                     >
-                      {/* Gray Circle */}
-                      <div
-                        className="w-5 h-5 rounded-full"
-                        style={{
-                          background: '#6b7280',
-                          border: '3px solid white',
-                          boxShadow: '0 2px 6px rgba(0, 0, 0, 0.2)',
-                        }}
-                      />
-                      
-                      {/* Connecting Line */}
-                      <div
-                        style={{
-                          width: '60px',
-                          height: '3px',
-                          background: '#9ca3af',
-                        }}
-                      />
-
-                      {/* Plus Button */}
                       <button
-                        className="flex items-center justify-center rounded-lg transition-all hover:bg-gray-200"
+                        className="relative transition-all duration-300 hover:scale-110 rounded-full"
                         style={{
-                          width: '32px',
-                          height: '32px',
-                          background: 'white',
-                          border: '2px solid #9ca3af',
+                          background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(239, 68, 68, 0.1))',
+                          border: '2px solid rgba(239, 68, 68, 0.4)',
+                          boxShadow: '0 0 20px rgba(239, 68, 68, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3)',
+                          cursor: 'pointer',
+                          backdropFilter: 'blur(10px)',
                         }}
+                        onMouseDown={(e) => e.stopPropagation()}
                         onClick={(e) => {
                           e.stopPropagation();
-                          setIsNodePanelOpen(true);
+                          console.log('Execute workflow triggered for node:', node.id);
+                          // Add your workflow execution logic here
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(239, 68, 68, 0.2))';
+                          e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.6)';
+                          e.currentTarget.style.boxShadow = '0 0 30px rgba(239, 68, 68, 0.6), 0 2px 12px rgba(0, 0, 0, 0.4)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(239, 68, 68, 0.1))';
+                          e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+                          e.currentTarget.style.boxShadow = '0 0 20px rgba(239, 68, 68, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3)';
                         }}
                       >
-                        <svg className="w-5 h-5" fill="none" stroke="#6b7280" viewBox="0 0 24 24" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                        </svg>
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center">
+                          <svg 
+                            className="w-4 h-4" 
+                            fill="#ef4444" 
+                            viewBox="0 0 20 20"
+                          >
+                            <path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" />
+                          </svg>
+                        </div>
                       </button>
+                      
+                      {/* Tooltip on hover */}
+                      <div
+                        className="absolute opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap"
+                        style={{
+                          left: '-10px',
+                          top: '50%',
+                          transform: 'translate(-100%, -50%)',
+                          background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.98))',
+                          border: '1px solid rgba(239, 68, 68, 0.5)',
+                          borderRadius: '8px',
+                          padding: '8px 14px',
+                          color: '#e0e8f0',
+                          fontSize: '12px',
+                          fontFamily: "'Orbitron', sans-serif",
+                          fontWeight: '600',
+                          backdropFilter: 'blur(20px)',
+                          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05)',
+                          zIndex: 1000,
+                          letterSpacing: '0.05em',
+                        }}
+                      >
+                        EXECUTE WORKFLOW
+                      </div>
                     </div>
+
+                    {/* Connection Point - Right Side */}
+                    {!nodes.some(n => n.parentId === node.id) && (
+                      <div
+                        className="absolute flex items-center"
+                        style={{
+                          right: '-100px', //adjust connection line
+                          top: '50%', 
+                          transform: 'translateY(-50%)',
+                        }}
+                      >
+                        {/* Glow Circle */}
+                        <div
+                          className="w-6 h-6 rounded-full transition-all duration-300"
+                          style={{
+                            background: 'linear-gradient(135deg, #10b981, #059669)',
+                            border: '2px solid rgba(16, 185, 129, 0.5)',
+                            boxShadow: '0 0 20px rgba(16, 185, 129, 0.6), 0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
+                          }}
+                        />
+                        
+                        {/* Connecting Line */}
+                        <div
+                          style={{
+                            width: '60px',
+                            height: '2px',
+                            background: 'linear-gradient(90deg, rgba(16, 185, 129, 0.6), rgba(16, 185, 129, 0.3))',
+                            boxShadow: '0 0 10px rgba(16, 185, 129, 0.4)',
+                          }}
+                        />
+
+                        {/* Plus Button */}
+                        <button
+                          className="flex items-center justify-center rounded-lg transition-all duration-300"
+                          style={{
+                            width: '34px',
+                            height: '34px',
+                            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.1))',
+                            border: '2px solid rgba(16, 185, 129, 0.4)',
+                            backdropFilter: 'blur(10px)',
+                            boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setParentNodeId(node.id);
+                            setIsNodePanelOpen(true);
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(16, 185, 129, 0.2))';
+                            e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.6)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.1))';
+                            e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+                          }}
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="#10b981" viewBox="0 0 24 24" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Text Below Card */}
-                  <div className="mt-4 text-center">
+                  <div className="mt-5 text-center">
                     <h3
-                      className="font-semibold mb-1"
+                      className="font-bold mb-1 tracking-wide"
                       style={{
-                        color: '#4b5563',
-                        fontFamily: "'Inter', sans-serif",
-                        fontSize: '16px',
+                        color: '#e0e8f0',
+                        fontFamily: "'Orbitron', sans-serif",
+                        fontSize: '15px',
+                        textShadow: '0 0 10px rgba(16, 185, 129, 0.3)',
+                        letterSpacing: '0.05em',
                       }}
                     >
-                      Telegram Trigger
+                      TELEGRAM TRIGGER
                     </h3>
                     <p
-                      className="text-sm"
+                      className="text-xs"
                       style={{
-                        color: '#9ca3af',
+                        color: '#6ee7b7',
                         fontFamily: "'Inter', sans-serif",
+                        fontWeight: '400',
                       }}
                     >
-                      Updates: {node.data.triggerType?.replace(/-/g, ' ') || 'message'}
+                      {node.data.triggerType?.replace(/-/g, ' ').toUpperCase() || 'MESSAGE'}
                     </p>
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
 
             {/* Start Button - Only show if no nodes */}
             {nodes.length === 0 && (
               <StartButton 
                 transform={transform} 
-                onClick={() => setIsTriggerPanelOpen(true)} 
+                onClick={() => setIsTriggerPanelOpen(true)}
+                onAddConnection={() => {
+                  setParentNodeId('start-button');
+                  setIsTriggerPanelOpen(true);
+                }}
+                hasChildren={nodes.some(n => n.parentId === 'start-button')}
               />
             )}
+
+            {/* Connection Lines - SVG */}
+            <svg
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                pointerEvents: 'none',
+                zIndex: 0,
+              }}
+            >
+              {nodes.map((node) => {
+                if (!node.parentId) return null;
+                
+                // Find parent node
+                const parentNode = nodes.find(n => n.id === node.parentId);
+                if (!parentNode) return null;
+
+                // Calculate line positions
+                const startX = parentNode.position.x + 80; // Right edge of parent node (moved left)
+                const startY = parentNode.position.y - 30; // Moved up slightly
+                const endX = node.position.x - 150; // Left edge of child node (moved left)
+                const endY = node.position.y - 30; // Moved up slightly
+
+                // Create a smooth curve
+                const midX = (startX + endX) / 2;
+
+                return (
+                  <path
+                    key={`connection-${node.id}`}
+                    d={`M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX} ${endY}`}
+                    stroke="#9ca3af"
+                    strokeWidth="3"
+                    fill="none"
+                    style={{
+                      filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))',
+                    }}
+                  />
+                );
+              })}
+            </svg>
           </div>
         </div>
 
@@ -756,19 +1047,34 @@ export default function FlowPage() {
       {/* Node Panel */}
       <NodePanel
         isOpen={isNodePanelOpen}
-        onClose={() => setIsNodePanelOpen(false)}
+        onClose={() => {
+          setIsNodePanelOpen(false);
+          setParentNodeId(null);
+        }}
         onAddNode={(nodeType) => {
           console.log('Adding node from NodePanel:', nodeType);
+          
+          // Calculate position relative to parent node
+          let newPosition = { x: 400 + (nodes.length * 50), y: 300 + (nodes.length * 50) };
+          
+          if (parentNodeId) {
+            const parentNode = nodes.find(n => n.id === parentNodeId);
+            if (parentNode) {
+              // Position new node to the right of parent
+              newPosition = {
+                x: parentNode.position.x + 400,
+                y: parentNode.position.y,
+              };
+            }
+          }
           
           // Create a new node based on the selected node type
           const newNode: Node = {
             id: `node-${Date.now()}`,
             type: nodeType.id,
             name: nodeType.title,
-            position: {
-              x: 400 + (nodes.length * 50),
-              y: 300 + (nodes.length * 50),
-            },
+            position: newPosition,
+            parentId: parentNodeId || undefined,
             data: {
               icon: nodeType.icon,
               color: '#10b981',
@@ -777,11 +1083,34 @@ export default function FlowPage() {
 
           setNodes((prev) => [...prev, newNode]);
           setIsNodePanelOpen(false);
+          setParentNodeId(null);
           
           // Show success toast
           setShowSuccessToast(true);
           setTimeout(() => setShowSuccessToast(false), 3000);
         }}
+      />
+
+      {/* AI Agent Configuration Panel */}
+      <AIAgentConfigPanel
+        isOpen={isAIAgentConfigOpen}
+        onClose={() => {
+          setIsAIAgentConfigOpen(false);
+          setSelectedAIAgentNode(null);
+        }}
+        nodeData={selectedAIAgentNode?.data}
+        onSave={handleSaveAIAgentConfig}
+      />
+
+      {/* If/Else Configuration Panel */}
+      <IfElseConfigPanel
+        isOpen={isIfElseConfigOpen}
+        onClose={() => {
+          setIsIfElseConfigOpen(false);
+          setSelectedIfElseNode(null);
+        }}
+        nodeData={selectedIfElseNode?.data}
+        onSave={handleSaveIfElseConfig}
       />
     </div>
   );

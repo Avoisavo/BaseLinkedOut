@@ -19,7 +19,17 @@ const nodeTypes: NodeType[] = [
     title: 'AI',
     description: 'Build autonomous agents, summarize or search documents, etc.',
     icon: '🤖',
-    category: 'AI'
+    category: 'AI',
+    subNodes: [
+      {
+        id: 'ai-agent',
+        title: 'AI Agent',
+        subtitle: 'Agent',
+        description: 'Create an AI agent with chat model, memory, and tools',
+        icon: '🤖',
+        category: 'AI'
+      }
+    ]
   },
   {
     id: 'action',
