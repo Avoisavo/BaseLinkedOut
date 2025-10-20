@@ -1,12 +1,16 @@
 'use client';
 
 import { useRef, useState, useEffect, MouseEvent as ReactMouseEvent, WheelEvent } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Header from '../../../component/Header';
 import TriggerPanel from './panel/TriggerPanel';
 import AppEventPanel from './panel/AppEventPanel';
 import TelegramPanel from './panel/TelegramPanel';
-import TelegramCredentialModal from '../../../component/TelegramCredentialModal';
+import NodePanel from './panel/NodePanel';
+import TelegramCredentialModal from './triggerNode/TelegramCredentialModal';
 import TelegramNodeConfig from '../../../component/TelegramNodeConfig';
+import StartButton from './triggerNode/StartNode';
+import { saveWorkflow, getWorkflow, createNewWorkflow, WorkflowData } from '@/lib/workflowStorage';
 
 interface Transform {
   x: number;
@@ -30,12 +34,19 @@ interface Node {
 
 export default function FlowPage() {
   const canvasRef = useRef<HTMLDivElement>(null);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const workflowId = searchParams.get('id');
+  
+  const [currentWorkflow, setCurrentWorkflow] = useState<WorkflowData | null>(null);
+  const [workflowTitle, setWorkflowTitle] = useState<string>('My workflow');
   const [transform, setTransform] = useState<Transform>({ x: 0, y: 0, scale: 1 });
   const [isPanning, setIsPanning] = useState(false);
   const [startPan, setStartPan] = useState({ x: 0, y: 0 });
   const [isTriggerPanelOpen, setIsTriggerPanelOpen] = useState(false);
   const [isAppEventPanelOpen, setIsAppEventPanelOpen] = useState(false);
   const [isTelegramPanelOpen, setIsTelegramPanelOpen] = useState(false);
+  const [isNodePanelOpen, setIsNodePanelOpen] = useState(false);
   const [isCredentialModalOpen, setIsCredentialModalOpen] = useState(false);
   const [isNodeConfigOpen, setIsNodeConfigOpen] = useState(false);
   const [selectedTrigger, setSelectedTrigger] = useState<string | null>(null);
@@ -44,6 +55,29 @@ export default function FlowPage() {
   const [botInfo, setBotInfo] = useState<any>(null);
   const [nodes, setNodes] = useState<Node[]>([]);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [draggedNode, setDraggedNode] = useState<string | null>(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null);
+
+  // Handle node drag start
+  const handleNodeMouseDown = (e: ReactMouseEvent<HTMLDivElement>, nodeId: string) => {
+    e.stopPropagation();
+    setDraggedNode(nodeId);
+    
+    const node = nodes.find(n => n.id === nodeId);
+    if (node) {
+      const canvasRect = canvasRef.current?.getBoundingClientRect();
+      if (canvasRect) {
+        // Calculate offset from mouse to node position, accounting for transform
+        const mouseX = (e.clientX - canvasRect.left - transform.x) / transform.scale;
+        const mouseY = (e.clientY - canvasRect.top - transform.y) / transform.scale;
+        setDragOffset({
+          x: mouseX - node.position.x,
+          y: mouseY - node.position.y,
+        });
+      }
+    }
+  };
 
   // Handle mouse down for panning
   const handleMouseDown = (e: ReactMouseEvent<HTMLDivElement>) => {
@@ -55,7 +89,7 @@ export default function FlowPage() {
     }
   };
 
-  // Handle mouse move for panning
+  // Handle mouse move for panning and dragging
   const handleMouseMove = (e: ReactMouseEvent<HTMLDivElement>) => {
     if (isPanning) {
       setTransform(prev => ({
@@ -63,12 +97,32 @@ export default function FlowPage() {
         x: e.clientX - startPan.x,
         y: e.clientY - startPan.y,
       }));
+    } else if (draggedNode) {
+      const canvasRect = canvasRef.current?.getBoundingClientRect();
+      if (canvasRect) {
+        // Calculate new position accounting for transform and scale
+        const mouseX = (e.clientX - canvasRect.left - transform.x) / transform.scale;
+        const mouseY = (e.clientY - canvasRect.top - transform.y) / transform.scale;
+        
+        setNodes(prev => prev.map(node => 
+          node.id === draggedNode
+            ? {
+                ...node,
+                position: {
+                  x: mouseX - dragOffset.x,
+                  y: mouseY - dragOffset.y,
+                },
+              }
+            : node
+        ));
+      }
     }
   };
 
-  // Handle mouse up to stop panning
+  // Handle mouse up to stop panning and dragging
   const handleMouseUp = () => {
     setIsPanning(false);
+    setDraggedNode(null);
   };
 
   // Handle zoom with mouse wheel
@@ -132,6 +186,62 @@ export default function FlowPage() {
     console.log('Node added to canvas:', newNode);
   };
 
+  // Load workflow on mount
+  useEffect(() => {
+    if (workflowId) {
+      // Load existing workflow
+      const workflow = getWorkflow(workflowId);
+      if (workflow) {
+        setCurrentWorkflow(workflow);
+        setWorkflowTitle(workflow.title);
+        setNodes(workflow.nodes || []);
+        setTransform(workflow.transform || { x: 0, y: 0, scale: 1 });
+        console.log('Loaded workflow:', workflow.title);
+      }
+    } else {
+      // Create new workflow
+      const newWorkflow = createNewWorkflow();
+      setCurrentWorkflow(newWorkflow);
+      setWorkflowTitle(newWorkflow.title);
+      // Update URL with new workflow ID
+      router.replace(`/flow?id=${newWorkflow.id}`);
+    }
+  }, []); // Run only once on mount
+
+  // Auto-save workflow (every 3 seconds when there are changes)
+  useEffect(() => {
+    if (!currentWorkflow) return;
+
+    const autoSaveInterval = setInterval(() => {
+      const workflowData: WorkflowData = {
+        ...currentWorkflow,
+        title: workflowTitle,
+        nodes,
+        transform,
+      };
+      
+      saveWorkflow(workflowData);
+      setLastSaveTime(new Date());
+    }, 3000); // Auto-save every 3 seconds
+
+    return () => clearInterval(autoSaveInterval);
+  }, [currentWorkflow, nodes, transform, workflowTitle]);
+
+  // Save on unmount (when leaving the page)
+  useEffect(() => {
+    return () => {
+      if (currentWorkflow) {
+        const workflowData: WorkflowData = {
+          ...currentWorkflow,
+          title: workflowTitle,
+          nodes,
+          transform,
+        };
+        saveWorkflow(workflowData);
+      }
+    };
+  }, [currentWorkflow, nodes, transform, workflowTitle]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -153,11 +263,27 @@ export default function FlowPage() {
           scale: Math.max(prev.scale - 0.1, 0.1),
         }));
       }
+      // Manual save with Ctrl+S / Cmd+S
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        if (currentWorkflow) {
+          const workflowData: WorkflowData = {
+            ...currentWorkflow,
+            title: workflowTitle,
+            nodes,
+            transform,
+          };
+          saveWorkflow(workflowData);
+          setLastSaveTime(new Date());
+          setShowSuccessToast(true);
+          setTimeout(() => setShowSuccessToast(false), 2000);
+        }
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [currentWorkflow, nodes, transform, workflowTitle]);
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden">
@@ -169,7 +295,7 @@ export default function FlowPage() {
         {/* Grid Background */}
         <div
           ref={canvasRef}
-          className="absolute inset-0 cursor-grab active:cursor-grabbing"
+          className="absolute inset-0"
           style={{
             background: '#1a1a1f',
             backgroundImage: `
@@ -178,6 +304,7 @@ export default function FlowPage() {
             `,
             backgroundSize: `${20 * transform.scale}px ${20 * transform.scale}px`,
             backgroundPosition: `${transform.x}px ${transform.y}px`,
+            cursor: draggedNode ? 'grabbing' : isPanning ? 'grabbing' : 'grab',
           }}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
@@ -199,18 +326,20 @@ export default function FlowPage() {
             {nodes.map((node) => (
               <div
                 key={node.id}
-                className="absolute transition-all hover:shadow-2xl"
+                className="absolute hover:shadow-2xl"
                 style={{
                   left: `${node.position.x}px`,
                   top: `${node.position.y}px`,
                   transform: 'translate(-50%, -50%)',
+                  transition: draggedNode === node.id ? 'none' : 'all 0.2s',
+                  pointerEvents: draggedNode && draggedNode !== node.id ? 'none' : 'auto',
                 }}
               >
                 {/* Main Node Card */}
                 <div className="flex flex-col items-center">
                   {/* Node Card */}
                   <div
-                    className="relative p-4 shadow-lg cursor-pointer transition-all hover:shadow-xl"
+                    className="relative p-4 shadow-lg transition-all hover:shadow-xl"
                     style={{
                       background: 'white',
                       border: '3px solid #9ca3af',
@@ -220,7 +349,9 @@ export default function FlowPage() {
                       alignItems: 'center',
                       justifyContent: 'center',
                       borderRadius: '32px',
+                      cursor: draggedNode === node.id ? 'grabbing' : 'grab',
                     }}
+                    onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
                   >
                     {/* Lightning Bolt Icon - Top Left */}
                     <div
@@ -314,7 +445,7 @@ export default function FlowPage() {
                         }}
                         onClick={(e) => {
                           e.stopPropagation();
-                          setIsTriggerPanelOpen(true);
+                          setIsNodePanelOpen(true);
                         }}
                       >
                         <svg className="w-5 h-5" fill="none" stroke="#6b7280" viewBox="0 0 24 24" strokeWidth={2.5}>
@@ -352,50 +483,10 @@ export default function FlowPage() {
 
             {/* Start Button - Only show if no nodes */}
             {nodes.length === 0 && (
-            <button
-                onClick={() => setIsTriggerPanelOpen(true)}
-              className="transition-all hover:scale-105 active:scale-95"
-              style={{
-                position: 'absolute',
-                left: '50%',
-                top: '50%',
-                // ADJUST START BUTTON
-                transform: `translate(${-transform.x / transform.scale - 180}px, ${-transform.y / transform.scale - 30}px)`,
-                padding: '16px 32px',
-                background: 'linear-gradient(135deg, rgba(100, 150, 200, 0.9), rgba(80, 120, 180, 0.9))',
-                border: '2px solid rgba(150, 180, 220, 0.6)',
-                borderRadius: '12px',
-                color: '#ffffff',
-                fontFamily: "'Orbitron', sans-serif",
-                fontSize: '18px',
-                fontWeight: '600',
-                letterSpacing: '0.05em',
-                backdropFilter: 'blur(15px)',
-                boxShadow: `
-                  0 12px 40px rgba(80, 120, 180, 0.4),
-                  inset 0 1px 2px rgba(255, 255, 255, 0.3),
-                  0 0 60px rgba(100, 150, 200, 0.3)
-                `,
-                cursor: 'pointer',
-              }}
-            >
-              <span className="flex items-center gap-2">
-                <svg 
-                  className="w-6 h-6" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round" 
-                    strokeWidth={2} 
-                    d="M12 4v16m8-8H4" 
-                  />
-                </svg>
-                Start with a Node
-              </span>
-            </button>
+              <StartButton 
+                transform={transform} 
+                onClick={() => setIsTriggerPanelOpen(true)} 
+              />
             )}
           </div>
         </div>
@@ -484,7 +575,7 @@ export default function FlowPage() {
 
         {/* Info Overlay */}
         <div
-          className="absolute bottom-4 left-4 px-4 py-2 rounded-lg"
+          className="absolute bottom-4 left-4 px-4 py-2 rounded-lg flex items-center gap-4"
           style={{
             background: 'rgba(20, 20, 25, 0.9)',
             border: '1px solid rgba(255, 255, 255, 0.1)',
@@ -494,7 +585,46 @@ export default function FlowPage() {
             backdropFilter: 'blur(10px)',
           }}
         >
-          Position: {Math.round(transform.x)}, {Math.round(transform.y)} | Zoom: {Math.round(transform.scale * 100)}% | Nodes: {nodes.length}
+          <div className="flex items-center gap-2">
+            <div
+              className="w-2 h-2 rounded-full"
+              style={{
+                background: '#10b981',
+                animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              }}
+            />
+            <span>Auto-save active</span>
+          </div>
+          <span>|</span>
+          <span>Position: {Math.round(transform.x)}, {Math.round(transform.y)}</span>
+          <span>|</span>
+          <span>Zoom: {Math.round(transform.scale * 100)}%</span>
+          <span>|</span>
+          <span>Nodes: {nodes.length}</span>
+        </div>
+
+        {/* Workflow Title */}
+        <div
+          className="absolute top-4 left-4 px-4 py-2 rounded-lg"
+          style={{
+            background: 'rgba(20, 20, 25, 0.9)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            backdropFilter: 'blur(10px)',
+            zIndex: 10,
+          }}
+        >
+          <input
+            type="text"
+            value={workflowTitle}
+            onChange={(e) => setWorkflowTitle(e.target.value)}
+            className="bg-transparent outline-none text-lg font-semibold"
+            style={{
+              color: '#e0e8f0',
+              fontFamily: "'Inter', sans-serif",
+              minWidth: '200px',
+            }}
+            placeholder="Workflow name..."
+          />
         </div>
 
         {/* Add Node FAB - Show if nodes exist */}
@@ -598,7 +728,7 @@ export default function FlowPage() {
       <TelegramCredentialModal
         isOpen={isCredentialModalOpen}
         onClose={() => setIsCredentialModalOpen(false)}
-        onSubmit={(token, info) => {
+        onSubmit={(token: string, info: any) => {
           console.log('Bot token submitted:', token);
           console.log('Bot info:', info);
           setBotToken(token);
@@ -621,6 +751,37 @@ export default function FlowPage() {
         triggerType={selectedTelegramAction}
         botToken={botToken}
         botInfo={botInfo}
+      />
+
+      {/* Node Panel */}
+      <NodePanel
+        isOpen={isNodePanelOpen}
+        onClose={() => setIsNodePanelOpen(false)}
+        onAddNode={(nodeType) => {
+          console.log('Adding node from NodePanel:', nodeType);
+          
+          // Create a new node based on the selected node type
+          const newNode: Node = {
+            id: `node-${Date.now()}`,
+            type: nodeType.id,
+            name: nodeType.title,
+            position: {
+              x: 400 + (nodes.length * 50),
+              y: 300 + (nodes.length * 50),
+            },
+            data: {
+              icon: nodeType.icon,
+              color: '#10b981',
+            },
+          };
+
+          setNodes((prev) => [...prev, newNode]);
+          setIsNodePanelOpen(false);
+          
+          // Show success toast
+          setShowSuccessToast(true);
+          setTimeout(() => setShowSuccessToast(false), 3000);
+        }}
       />
     </div>
   );

@@ -95,7 +95,7 @@ export default function Header({ title = 'LinkedOut', showBackButton = false }: 
       {/* Center - Navigation Links */}
       <div className="flex items-center gap-6">
         <button
-          onClick={() => router.push('/workflow')}
+          onClick={() => router.push('/workflowOverview')}
           className="px-4 py-2 rounded-lg font-semibold transition-all hover:scale-105 flex items-center gap-2"
           style={{
             fontFamily: "'Inter', sans-serif",
