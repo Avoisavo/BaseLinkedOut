@@ -30,8 +30,8 @@
 
 ## 📝 Important Addresses
 
-Base Sepolia Contract: 0x1498FECa6fb7525616C369592440B6E8325C3D6D
-Hedera Testnet Contract: 0xAd9C65E6F4BD584A77bA942B7a5f4BEc67520181
+Base Sepolia Contract: 0x82A16c0a82452aD07aae296b3E408d6Bcd9C3adf
+Hedera Testnet Contract: 0x1498FECa6fb7525616C369592440B6E8325C3D6D
 Escrow contract: 0xd563d7c42f86a4d59BC5dE365BFca66EC23A8C7B
 
 ## 🔗 Useful Links
