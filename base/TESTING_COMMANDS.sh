@@ -19,8 +19,8 @@ echo -e "\n${GREEN}Step 1: Mint test tokens on Base Sepolia${NC}"
 echo "npx hardhat run scripts/1-mint-tokens.js --network base-sepolia"
 
 echo -e "\n${GREEN}Step 2: Check balances before bridging${NC}"
-echo "npx hardhat run scripts/check-balances.js --network base-sepolia"
-echo "npx hardhat run scripts/check-balances.js --network hedera-testnet"
+echo "npx hardhat run scripts/check-balance.js --network base-sepolia"
+echo "npx hardhat run scripts/check-balance.js --network hedera-testnet"
 
 echo -e "\n${GREEN}Step 3: Bridge Base Sepolia → Hedera (0.0005 tokens)${NC}"
 echo "npx hardhat lz:oft:send \\"
@@ -33,7 +33,7 @@ echo "  --network base-sepolia"
 echo -e "\n${YELLOW}⏳ Wait 2-5 minutes for cross-chain delivery...${NC}"
 
 echo -e "\n${GREEN}Step 4: Verify tokens received on Hedera${NC}"
-echo "npx hardhat run scripts/check-balances.js --network hedera-testnet"
+echo "npx hardhat run scripts/check-balance.js --network hedera-testnet"
 
 echo -e "\n${GREEN}Step 5: Bridge Hedera → Base Sepolia (0.0005 tokens)${NC}"
 echo "npx hardhat lz:oft:send \\"
@@ -46,13 +46,13 @@ echo "  --network hedera-testnet"
 echo -e "\n${YELLOW}⏳ Wait 2-5 minutes for cross-chain delivery...${NC}"
 
 echo -e "\n${GREEN}Step 6: Verify tokens received back on Base Sepolia${NC}"
-echo "npx hardhat run scripts/check-balances.js --network base-sepolia"
+echo "npx hardhat run scripts/check-balance.js --network base-sepolia"
 
 echo -e "\n${BLUE}📊 Track transactions on LayerZero Scan:${NC}"
 echo "https://testnet.layerzeroscan.com/"
 
 echo -e "\n${BLUE}📝 Contract Addresses:${NC}"
-echo "Base Sepolia:   0x1498FECa6fb7525616C369592440B6E8325C3D6D"
+echo "Base Sepolia:   0x82A16c0a82452aD07aae296b3E408d6Bcd9C3adf"
 echo "Hedera Testnet: 0xAd9C65E6F4BD584A77bA942B7a5f4BEc67520181"
 
 echo ""
