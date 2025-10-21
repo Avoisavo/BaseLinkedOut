@@ -4,23 +4,7 @@ import { useState, useEffect } from 'react';
 import { parseEther, formatEther, encodeFunctionData, hexToBigInt, type Hex } from 'viem';
 import { useAccount, useWalletClient, useSwitchChain, usePublicClient, useBalance } from 'wagmi';
 import Header from '../../../component/Header';
-
-// Extend Window interface for Base payment
-declare global {
-  interface Window {
-    base?: {
-      pay: (params: {
-        amount: string;
-        to: string;
-        testnet?: boolean;
-      }) => Promise<{ id: string }>;
-      getPaymentStatus: (params: {
-        id: string;
-        testnet?: boolean;
-      }) => Promise<{ status: string }>;
-    };
-  }
-}
+import { baseSepoliaPreconf } from '../../wagmi';
 
 // Contract addresses
 const BASE_SEPOLIA_OFT = '0x82A16c0a82452aD07aae296b3E408d6Bcd9C3adf';
@@ -174,26 +158,17 @@ export default function SwapPage() {
   const [isPending, setIsPending] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
-  
-  // Base Account SDK states for payment feature
-  const [baseAccountStatus, setBaseAccountStatus] = useState<string>('');
 
-  // Chain configs
-  const baseSepolia = { 
-    id: 84532, 
-    name: 'Base Sepolia', 
-    nativeCurrency: { symbol: 'ETH' },
-    blockExplorers: { default: { url: 'https://sepolia.basescan.org' } }
-  };
-  const hederaTestnet = { 
+  // Chain configs - using Flashblocks for Base Sepolia
+  const hederaTestnetLocal = { 
     id: 296, 
     name: 'Hedera Testnet', 
     nativeCurrency: { symbol: 'HBAR' },
     blockExplorers: { default: { url: 'https://hashscan.io/testnet' } }
   };
 
-  const sourceChain = isBaseToHedera ? baseSepolia : hederaTestnet;
-  const destChain = isBaseToHedera ? hederaTestnet : baseSepolia;
+  const sourceChain = isBaseToHedera ? baseSepoliaPreconf : hederaTestnetLocal;
+  const destChain = isBaseToHedera ? hederaTestnetLocal : baseSepoliaPreconf;
   const sourceContract = isBaseToHedera ? BASE_SEPOLIA_OFT : HEDERA_TESTNET_OFT;
   const destEid = isBaseToHedera ? HEDERA_TESTNET_EID : BASE_SEPOLIA_EID;
 
@@ -245,9 +220,9 @@ export default function SwapPage() {
   // Handle network switch
   const handleSwitchNetwork = async () => {
     try {
-      setTxStatus('Switching to Base Sepolia...');
+      setTxStatus('Switching to Base Sepolia (Flashblocks)...');
       await switchChain({ chainId: 84532 });
-      setTxStatus('✅ Switched to Base Sepolia!');
+      setTxStatus('✅ Switched to Base Sepolia with Flashblocks!');
       setTimeout(() => setTxStatus(''), 3000);
       // Refresh balances after switching
       fetchBalances();
@@ -409,105 +384,12 @@ export default function SwapPage() {
     }
   }, [isConfirming, isConfirmed]);
 
-  // Pay with Base Account
-  const handleBaseAccountPay = async () => {
-    if (!window.base) {
-      setBaseAccountStatus('❌ Base Account SDK not fully loaded');
-      return;
-    }
-
-    try {
-      setBaseAccountStatus('🔄 Processing payment...');
-      
-      const result = await window.base.pay({
-        amount: "5.00", // USD – SDK quotes equivalent USDC
-        to: "0x2211d1D0020DAEA8039E46Cf1367962070d77DA9",
-        testnet: true // Using testnet
-      });
-
-      const status = await window.base.getPaymentStatus({
-        id: result.id,
-        testnet: true
-      });
-      
-      setBaseAccountStatus(`🎉 Payment completed! Status: ${status.status}`);
-      console.log('Payment result:', result, 'Status:', status);
-      
-    } catch (error: any) {
-      console.error('Base Account payment error:', error);
-      setBaseAccountStatus(`❌ Payment failed: ${error.message || 'Unknown error'}`);
-    }
-  };
-
   return (
     <div className="min-h-screen" style={{ background: 'linear-gradient(to bottom right, #0a0e1a, #1a1f35, #0f1419)' }}>
       <Header title="LinkedOut Bridge" showBackButton={true} />
 
       <div className="flex items-center justify-center min-h-[calc(100vh-4rem)] p-6">
         <div className="w-full max-w-4xl space-y-6">
-          {/* Base Pay Feature Section */}
-          {isConnected && (
-            <div
-              className="w-full p-6 rounded-2xl"
-              style={{
-                background: 'rgba(20, 20, 30, 0.8)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                backdropFilter: 'blur(20px)',
-                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-              }}
-            >
-              <h3 className="text-xl font-bold text-center mb-4 text-white">
-                💳 Quick USDC Payment
-              </h3>
-
-              <button
-                onClick={handleBaseAccountPay}
-                disabled={!isConnected}
-                className="w-full py-3 px-6 rounded-xl font-bold text-lg transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{
-                  background: isConnected
-                    ? 'linear-gradient(135deg, #10b981, #059669)'
-                    : 'rgba(100, 100, 120, 0.5)',
-                  color: 'white',
-                }}
-              >
-                Pay $5 USDC (Testnet)
-              </button>
-
-              {baseAccountStatus && (
-                <div
-                  className="mt-4 p-3 rounded-xl text-center"
-                  style={{
-                    background: baseAccountStatus.includes('✅') || baseAccountStatus.includes('🎉')
-                      ? 'rgba(34, 197, 94, 0.1)'
-                      : baseAccountStatus.includes('❌')
-                      ? 'rgba(239, 68, 68, 0.1)'
-                      : 'rgba(96, 165, 250, 0.1)',
-                    border: `1px solid ${
-                      baseAccountStatus.includes('✅') || baseAccountStatus.includes('🎉')
-                        ? 'rgba(34, 197, 94, 0.3)'
-                        : baseAccountStatus.includes('❌')
-                        ? 'rgba(239, 68, 68, 0.3)'
-                        : 'rgba(96, 165, 250, 0.3)'
-                    }`,
-                  }}
-                >
-                  <p
-                    className={`text-sm ${
-                      baseAccountStatus.includes('✅') || baseAccountStatus.includes('🎉')
-                        ? 'text-green-400'
-                        : baseAccountStatus.includes('❌')
-                        ? 'text-red-400'
-                        : 'text-blue-400'
-                    }`}
-                  >
-                    {baseAccountStatus}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
           {/* Bridge Section */}
           <div
             className="w-full p-8 rounded-2xl"
