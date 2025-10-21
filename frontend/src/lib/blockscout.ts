@@ -24,6 +24,7 @@ export interface ContractInfo {
   abi: ContractABI[];
   balance?: string;
   verified: boolean;
+  source_code?: string;
 }
 
 // Blockscout API endpoints
@@ -99,6 +100,7 @@ export async function fetchContractFromBlockscout(
       abi,
       balance,
       verified: true,
+      source_code: contractData.SourceCode || '',
     };
   } catch (error) {
     console.error('Error fetching contract from Blockscout:', error);
