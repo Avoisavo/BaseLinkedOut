@@ -5,6 +5,9 @@ import { parseEther, formatEther } from 'viem';
 import { useAccount, useWalletClient, useSwitchChain, usePublicClient } from 'wagmi';
 import Header from '../../../component/Header';
 import { baseSepoliaPreconf, hederaTestnet } from '../../wagmi';
+import { useBasename } from '../../hooks/useBasename';
+import { resolveBasename } from '../../lib/basenames';
+import { baseSepolia } from 'wagmi/chains';
 
 // Updated contract addresses from deployment
 const BASE_SEPOLIA_OFT = '0x612F53C77972F2ACaD4Bfc2D9b64cD255326aE3a';
@@ -117,12 +120,17 @@ export default function TestBridgePage() {
   const { switchChain } = useSwitchChain();
   const publicClient = usePublicClient();
 
+  // Basename integration for connected wallet
+  const { basename, avatar, isLoading: basenameLoading } = useBasename(address, baseSepolia.id);
+
   const [baseBalance, setBaseBalance] = useState('0');
   const [hederaBalance, setHederaBalance] = useState('0');
   const [totalSupply, setTotalSupply] = useState('0');
   const [mintAmount, setMintAmount] = useState('10');
   const [bridgeAmount, setBridgeAmount] = useState('0.001');
+  const [recipientInput, setRecipientInput] = useState(HEDERA_OWNER);
   const [recipientAddress, setRecipientAddress] = useState(HEDERA_OWNER);
+  const [isResolvingBasename, setIsResolvingBasename] = useState(false);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('');
   const [txHash, setTxHash] = useState('');
@@ -172,6 +180,37 @@ export default function TestBridgePage() {
       return () => clearInterval(interval);
     }
   }, [isConnected, address, publicClient]);
+
+  // Handle recipient input and resolve basenames
+  const handleRecipientChange = async (input: string) => {
+    setRecipientInput(input);
+    
+    // Check if input looks like a basename
+    if (input.endsWith('.base.eth')) {
+      setIsResolvingBasename(true);
+      try {
+        const resolved = await resolveBasename(input, baseSepolia.id);
+        if (resolved) {
+          setRecipientAddress(resolved);
+          setStatus(`✅ Resolved ${input} to ${resolved}`);
+        } else {
+          setStatus(`❌ Could not resolve ${input}`);
+          setRecipientAddress(input as `0x${string}`);
+        }
+      } catch (error) {
+        console.error('Error resolving basename:', error);
+        setStatus(`❌ Error resolving basename`);
+      } finally {
+        setIsResolvingBasename(false);
+      }
+    } else if (input.startsWith('0x') && input.length === 42) {
+      // It's already a valid address
+      setRecipientAddress(input as `0x${string}`);
+      setStatus('');
+    } else {
+      setRecipientAddress(input as `0x${string}`);
+    }
+  };
 
   // Mint tokens
   const handleMint = async () => {
@@ -339,7 +378,27 @@ export default function TestBridgePage() {
                 <div className="space-y-3">
                   <div>
                     <p className="text-gray-400 text-sm">Your Address</p>
-                    <p className="text-white font-mono text-xs break-all">{address || BASE_OWNER}</p>
+                    <div className="flex items-center gap-3">
+                      {avatar && (
+                        <img 
+                          src={avatar} 
+                          alt="Profile Avatar" 
+                          className="w-8 h-8 rounded-full border-2 border-blue-400"
+                        />
+                      )}
+                      <div className="flex-1">
+                        {basenameLoading ? (
+                          <p className="text-white text-sm">Loading basename...</p>
+                        ) : basename ? (
+                          <>
+                            <p className="text-white font-bold text-sm">{basename}</p>
+                            <p className="text-gray-500 font-mono text-xs break-all">{address}</p>
+                          </>
+                        ) : (
+                          <p className="text-white font-mono text-xs break-all">{address || BASE_OWNER}</p>
+                        )}
+                      </div>
+                    </div>
                   </div>
                   <div>
                     <p className="text-gray-400 text-sm">Contract</p>
@@ -469,18 +528,27 @@ export default function TestBridgePage() {
                   </div>
 
                   <div>
-                    <label className="text-gray-400 text-sm mb-2 block">Recipient on Hedera</label>
+                    <label className="text-gray-400 text-sm mb-2 block">
+                      Recipient on Hedera
+                      {isResolvingBasename && <span className="ml-2 text-blue-400">🔍 Resolving...</span>}
+                    </label>
                     <input
                       type="text"
-                      value={recipientAddress}
-                      onChange={(e) => setRecipientAddress(e.target.value)}
+                      value={recipientInput}
+                      onChange={(e) => handleRecipientChange(e.target.value)}
                       className="w-full px-4 py-3 rounded-lg text-white font-mono text-xs"
                       style={{
                         background: 'rgba(50, 50, 60, 0.5)',
                         border: '1px solid rgba(255, 255, 255, 0.2)',
                       }}
-                      placeholder="0x..."
+                      placeholder="Enter address or basename (e.g., alice.base.eth)"
                     />
+                    {recipientInput.endsWith('.base.eth') && recipientAddress !== recipientInput && (
+                      <div className="mt-2 p-2 rounded" style={{ background: 'rgba(96, 165, 250, 0.1)' }}>
+                        <p className="text-xs text-gray-400">Resolved to:</p>
+                        <p className="text-xs text-blue-400 font-mono break-all">{recipientAddress}</p>
+                      </div>
+                    )}
                   </div>
                   
                   <button

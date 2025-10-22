@@ -12,7 +12,9 @@
   },
   "dependencies": {
     "@base-org/account": "^2.4.0",
+    "@coinbase/coinbase-sdk": "^0.25.0",
     "@coinbase/onchainkit": "^1.1.1",
+    "@ensdomains/ensjs": "^4.0.2",
     "@rainbow-me/rainbowkit": "^2.2.9",
     "@react-three/drei": "^10.7.6",
     "@react-three/fiber": "^9.4.0",
@@ -21,8 +23,8 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "three": "^0.180.0",
-    "viem": "^2.38.2",
-    "wagmi": "^2.18.1"
+    "viem": "^2.38.3",
+    "wagmi": "^2.18.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
