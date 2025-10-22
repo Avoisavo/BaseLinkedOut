@@ -3,6 +3,7 @@ import { encodeFunctionData, namehash, createPublicClient, http } from "viem";
 import { normalize } from "viem/ens";
 import { baseSepolia } from "viem/chains";
 import os from "os";
+import crypto from "crypto";
 
 // Relevant ABI for L2 Resolver Contract.
 const l2ResolverABI = [
@@ -36,6 +37,17 @@ const l2ResolverABI = [
         { internalType: "uint256", name: "duration", type: "uint256" },
       ],
       name: "registerPrice",
+      outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+      stateMutability: "view",
+      type: "function",
+    },
+    {
+      inputs: [
+        { internalType: "string", name: "name", type: "string" },
+        { internalType: "uint256", name: "duration", type: "uint256" },
+        { internalType: "bytes32", name: "discountKey", type: "bytes32" },
+      ],
+      name: "discountedRegisterPrice",
       outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
       stateMutability: "view",
       type: "function",
@@ -85,6 +97,29 @@ const l2ResolverABI = [
       stateMutability: "payable",
       type: "function",
     },
+    {
+      inputs: [
+        {
+          components: [
+            { internalType: "string", name: "name", type: "string" },
+            { internalType: "address", name: "owner", type: "address" },
+            { internalType: "uint256", name: "duration", type: "uint256" },
+            { internalType: "address", name: "resolver", type: "address" },
+            { internalType: "bytes[]", name: "data", type: "bytes[]" },
+            { internalType: "bool", name: "reverseRecord", type: "bool" },
+          ],
+          internalType: "struct RegistrarController.RegisterRequest",
+          name: "request",
+          type: "tuple",
+        },
+        { internalType: "bytes32", name: "discountKey", type: "bytes32" },
+        { internalType: "bytes", name: "validationData", type: "bytes" },
+      ],
+      name: "discountedRegister",
+      outputs: [],
+      stateMutability: "payable",
+      type: "function",
+    },
   ];
 
 // Basenames Registrar Controller Contract Address.
@@ -123,8 +158,13 @@ function createRegisterContractMethodArgs(baseName, addressId) {
   return registerArgs;
 }
 
+// ADD: Testnet discount key (only works on Base Sepolia testnet)
+const TESTNET_DISCOUNT_KEY = "0x" + crypto.createHash("sha256")
+  .update("testnet.discount.validator")
+  .digest("hex");
+
 // Get price from contract
-async function getRegisterPrice(name) {
+async function getRegisterPrice(name, useDiscount = false) {
   const client = createPublicClient({
     chain: baseSepolia,
     transport: http(),
@@ -132,20 +172,33 @@ async function getRegisterPrice(name) {
 
   const nameOnly = name.replace(baseNameRegex, "");
   
-  console.log(`📊 Querying price for "${nameOnly}"...`);
-  
-  const price = await client.readContract({
-    address: BaseNamesRegistrarControllerAddress,
-    abi: registrarABI,
-    functionName: "registerPrice",
-    args: [nameOnly, 31557600n],
-  });
+  if (useDiscount) {
+    console.log(`📊 Querying DISCOUNTED price for "${nameOnly}"...`);
+    
+    const price = await client.readContract({
+      address: BaseNamesRegistrarControllerAddress,
+      abi: registrarABI,
+      functionName: "discountedRegisterPrice",
+      args: [nameOnly, 31557600n, TESTNET_DISCOUNT_KEY],
+    });
+    
+    return price;
+  } else {
+    console.log(`📊 Querying price for "${nameOnly}"...`);
+    
+    const price = await client.readContract({
+      address: BaseNamesRegistrarControllerAddress,
+      abi: registrarABI,
+      functionName: "registerPrice",
+      args: [nameOnly, 31557600n],
+    });
 
-  return price;
+    return price;
+  }
 }
 
 // Register a Basename for the given Wallet.
-async function registerBaseName(wallet, registerArgs, price) {
+async function registerBaseName(wallet, registerArgs, price, useDiscount = false) {
   try {
     // Add 50% buffer to be safe (excess will be refunded)
     const priceWithBuffer = (BigInt(price) * 150n) / 100n;
@@ -153,19 +206,41 @@ async function registerBaseName(wallet, registerArgs, price) {
     
     console.log(`💰 Base price: ${(Number(price) / 1e18).toFixed(6)} ETH`);
     console.log(`💰 Sending: ${priceInEth.toFixed(6)} ETH (with 50% buffer - excess will be refunded)`);
-    console.log(`⏳ Registering basename...\n`);
+    
+    if (useDiscount) {
+      console.log(`🎟️  Using testnet discount!`);
+      console.log(`⏳ Registering basename with discount...\n`);
 
-    const contractInvocation = await wallet.invokeContract({
-      contractAddress: BaseNamesRegistrarControllerAddress,
-      method: "register",
-      abi: registrarABI,
-      args: registerArgs,
-      amount: priceInEth,
-      assetId: Coinbase.assets.Eth,
-    });
+      const contractInvocation = await wallet.invokeContract({
+        contractAddress: BaseNamesRegistrarControllerAddress,
+        method: "discountedRegister",
+        abi: registrarABI,
+        args: {
+          request: registerArgs.request,
+          discountKey: TESTNET_DISCOUNT_KEY,
+          validationData: "0x", // Empty bytes - testnet validator always returns true
+        },
+        amount: priceInEth,
+        assetId: Coinbase.assets.Eth,
+      });
 
-    console.log(`⏳ Waiting for transaction confirmation...`);
-    await contractInvocation.wait();
+      console.log(`⏳ Waiting for transaction confirmation...`);
+      await contractInvocation.wait();
+    } else {
+      console.log(`⏳ Registering basename...\n`);
+
+      const contractInvocation = await wallet.invokeContract({
+        contractAddress: BaseNamesRegistrarControllerAddress,
+        method: "register",
+        abi: registrarABI,
+        args: registerArgs,
+        amount: priceInEth,
+        assetId: Coinbase.assets.Eth,
+      });
+
+      console.log(`⏳ Waiting for transaction confirmation...`);
+      await contractInvocation.wait();
+    }
 
     console.log(`\n✅ SUCCESS! Basename registered!`);
     console.log(`═══════════════════════════════════════`);
@@ -197,11 +272,14 @@ async function fetchWalletAndLoadSeed(walletId, seedFilePath) {
 
 (async () => {
   try {
-    const { BASE_NAME, WALLET_ID, SEED_FILE_PATH } = process.env;
+    const { BASE_NAME, WALLET_ID, SEED_FILE_PATH, USE_DISCOUNT } = process.env;
+    
+    const useDiscount = USE_DISCOUNT === "true";
 
     console.log("🚀 Starting Basename Registration");
     console.log("═══════════════════════════════════════");
     console.log(`   Basename: ${BASE_NAME}`);
+    if (useDiscount) console.log(`   Discount: Testnet Validator`);
     console.log("═══════════════════════════════════════\n");
 
     // Manage CDP API Key for Coinbase SDK.
@@ -216,12 +294,12 @@ async function fetchWalletAndLoadSeed(walletId, seedFilePath) {
     const defaultAddress = await wallet.getDefaultAddress();
     console.log(`✅ Wallet loaded: ${defaultAddress.getId()}\n`);
 
-    // Get the actual price from the contract
-    const price = await getRegisterPrice(BASE_NAME);
+    // Get the actual price from the contract (with or without discount)
+    const price = await getRegisterPrice(BASE_NAME, useDiscount);
     
     // Register Basename.
     const registerArgs = createRegisterContractMethodArgs(BASE_NAME, defaultAddress.getId());
-    await registerBaseName(wallet, registerArgs, price);
+    await registerBaseName(wallet, registerArgs, price, useDiscount);
   } catch (error) {
     console.error(`\n❌ Registration failed:`, error);
   }
