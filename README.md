@@ -480,45 +480,8 @@ We welcome contributions! Here's how to get started:
 - Account abstraction for gasless transactions
 - Backend database for workflow storage
 
----
 
-## 📄 License
 
-This project is licensed under the **MIT License** - see the [LICENSE](./LICENSE) file for details.
-
----
-
-## 🙏 Acknowledgments
-
-Built with these incredible technologies:
-
-- **[Base](https://base.org)** - L2 blockchain platform
-- **[LayerZero](https://layerzero.network)** - Omnichain interoperability protocol
-- **[Pyth Network](https://pyth.network)** - Real-time oracle price feeds
-- **[XMTP](https://xmtp.org)** - Secure messaging protocol
-- **[OpenZeppelin](https://openzeppelin.com)** - Smart contract libraries
-- **[Coinbase OnchainKit](https://onchainkit.xyz)** - Base development tools
-- **[Wagmi](https://wagmi.sh)** - React hooks for Ethereum
-- **[RainbowKit](https://rainbowkit.com)** - Wallet connection UI
-
----
-
-## 📞 Support & Community
-
-- **GitHub Issues**: [Report bugs or request features](https://github.com/your-org/BaseLinkedOut/issues)
-- **Twitter**: [@LinkedOutXYZ](https://twitter.com/LinkedOutXYZ) (example)
-- **Discord**: [Join our community](https://discord.gg/linkedout) (example)
-- **Email**: support@linkedout.xyz (example)
-
----
-
-## 🌟 Star History
-
-If you find LinkedOut useful, please consider giving us a ⭐ on GitHub!
-
-[![Star History Chart](https://api.star-history.com/svg?repos=your-org/BaseLinkedOut&type=Date)](https://star-history.com/#your-org/BaseLinkedOut&Date)
-
----
 
 
 <p align="center">
