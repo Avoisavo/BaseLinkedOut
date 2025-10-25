@@ -1,0 +1,132 @@
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+
+interface HeaderProps {
+  title?: string;
+  showBackButton?: boolean;
+}
+
+export default function Header({ title = 'LinkedOut', showBackButton = false }: HeaderProps) {
+  const router = useRouter();
+
+  return (
+    <div 
+      className="relative z-20 h-16 flex items-center justify-between px-6 border-b"
+      style={{
+        background: 'rgba(20, 20, 25, 0.95)',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+        backdropFilter: 'blur(20px)',
+      }}
+    >
+      {/* Left Side */}
+      <div className="flex items-center gap-4">
+        {showBackButton && (
+          <button
+            onClick={() => router.back()}
+            className="p-2 rounded-lg transition-all hover:scale-110"
+            style={{
+              background: 'rgba(60, 60, 70, 0.5)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+            }}
+          >
+            <svg 
+              className="w-5 h-5" 
+              fill="none" 
+              stroke="#e0e8f0" 
+              viewBox="0 0 24 24"
+            >
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth={2} 
+                d="M15 19l-7-7 7-7" 
+              />
+            </svg>
+          </button>
+        )}
+        <h1
+          className="text-xl font-bold cursor-pointer transition-all hover:scale-105"
+          onClick={() => router.push('/land')}
+          style={{
+            fontFamily: "'Orbitron', sans-serif",
+            background: 'linear-gradient(to bottom, #ffffff 0%, #e0e8f0 50%, #9fb5cc 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+            letterSpacing: '0.1em',
+          }}
+        >
+          {title}
+        </h1>
+      </div>
+
+      {/* Center - Navigation Links */}
+      <div className="flex items-center gap-6">
+        <button
+          onClick={() => router.push('/workflowOverview')}
+          className="px-4 py-2 rounded-lg font-semibold transition-all hover:scale-105 flex items-center gap-2"
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            background: 'rgba(60, 60, 70, 0.4)',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            color: '#e0e8f0',
+            fontSize: '14px',
+          }}
+        >
+          <svg 
+            className="w-4 h-4" 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+              strokeWidth={2} 
+              d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" 
+            />
+          </svg>
+          My Workflow
+        </button>
+        <button
+          className="px-4 py-2 rounded-lg font-semibold transition-all hover:scale-105 flex items-center gap-2"
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            background: 'rgba(60, 60, 70, 0.4)',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            color: '#e0e8f0',
+            fontSize: '14px',
+          }}
+        >
+          <svg 
+            className="w-4 h-4" 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+              strokeWidth={2} 
+              d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" 
+            />
+          </svg>
+          Credential
+        </button>
+      </div>
+
+      {/* Right Side - Connect Wallet */}
+      <div className="flex items-center gap-4">
+        <ConnectButton />
+      </div>
+
+      {/* Fonts */}
+      <style jsx>{`
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600&display=swap');
+      `}</style>
+    </div>
+  );
+}
+
