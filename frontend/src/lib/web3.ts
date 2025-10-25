@@ -3,6 +3,16 @@ import { createPublicClient, createWalletClient, custom, http, formatUnits, pars
 import { baseSepolia } from 'viem/chains';
 import { ContractABI } from './blockscout';
 
+// Base Sepolia Preconf (Flashblocks) chain config
+export const baseSepoliaPreconf = {
+  ...baseSepolia,
+  name: 'Base Sepolia (Flashblocks)',
+  rpcUrls: {
+    default: { http: ['https://sepolia-preconf.base.org'] },
+    public: { http: ['https://sepolia-preconf.base.org'] },
+  },
+} as const;
+
 // Custom chain config for Hedera Testnet
 export const hederaTestnet = {
   id: 296,
@@ -38,7 +48,7 @@ export async function getWeb3Provider(network: 'base' | 'hedera' = 'base') {
   }
   
   try {
-    const chain = network === 'base' ? baseSepolia : hederaTestnet;
+    const chain = network === 'base' ? baseSepoliaPreconf : hederaTestnet;
     const client = createPublicClient({
       chain,
       transport: custom(window.ethereum),
@@ -112,16 +122,18 @@ export async function switchNetwork(chainId: string): Promise<boolean> {
 
 /**
  * Call a read-only contract function
+ * @param usePending - Use 'pending' block tag for near-instant Flashblocks responses (~200ms)
  */
 export async function callContractReadFunction(
   contractAddress: string,
   abi: ContractABI[],
   functionName: string,
   args: any[] = [],
-  network: 'base' | 'hedera' = 'base'
+  network: 'base' | 'hedera' = 'base',
+  usePending: boolean = false
 ): Promise<any> {
   try {
-    const chain = network === 'base' ? baseSepolia : hederaTestnet;
+    const chain = network === 'base' ? baseSepoliaPreconf : hederaTestnet;
     const client = createPublicClient({
       chain,
       transport: window.ethereum ? custom(window.ethereum) : http(),
@@ -132,6 +144,7 @@ export async function callContractReadFunction(
       abi: abi as Abi,
       functionName,
       args,
+      blockTag: usePending ? 'pending' : 'latest',
     });
     
     return result;
@@ -143,6 +156,7 @@ export async function callContractReadFunction(
 
 /**
  * Call a write contract function (requires transaction)
+ * Note: Flashblocks automatically provides ~200ms confirmation times on Base Sepolia
  */
 export async function callContractWriteFunction(
   contractAddress: string,
@@ -157,7 +171,7 @@ export async function callContractWriteFunction(
       throw new Error('Please connect your wallet first');
     }
 
-    const chain = network === 'base' ? baseSepolia : hederaTestnet;
+    const chain = network === 'base' ? baseSepoliaPreconf : hederaTestnet;
     const walletClient = createWalletClient({
       chain,
       transport: custom(window.ethereum),
@@ -290,8 +304,8 @@ export async function getNetwork(): Promise<{ chainId: number; name: string } | 
     const chainIdNum = parseInt(chainId, 16);
     
     let name = 'Unknown';
-    if (chainIdNum === baseSepolia.id) {
-      name = 'Base Sepolia';
+    if (chainIdNum === baseSepoliaPreconf.id) {
+      name = 'Base Sepolia (Flashblocks)';
     } else if (chainIdNum === hederaTestnet.id) {
       name = 'Hedera Testnet';
     }
@@ -307,13 +321,13 @@ export async function getNetwork(): Promise<{ chainId: number; name: string } | 
 export const NETWORKS = {
   'base-sepolia': {
     chainId: '0x14a34', // 84532 in decimal
-    chainName: 'Base Sepolia',
+    chainName: 'Base Sepolia (Flashblocks)',
     nativeCurrency: {
       name: 'ETH',
       symbol: 'ETH',
       decimals: 18
     },
-    rpcUrls: ['https://sepolia.base.org'],
+    rpcUrls: ['https://sepolia-preconf.base.org'],
     blockExplorerUrls: ['https://sepolia.basescan.org']
   },
   'hedera-testnet': {
@@ -328,3 +342,53 @@ export const NETWORKS = {
     blockExplorerUrls: ['https://hashscan.io/testnet']
   }
 };
+
+/**
+ * Flashblocks Utility Functions
+ * Use these for near-instant responses (~200ms) on Base Sepolia
+ */
+
+/**
+ * Get pending block information (Flashblocks preconfirmation)
+ */
+export async function getPendingBlock(network: 'base' | 'hedera' = 'base') {
+  const chain = network === 'base' ? baseSepoliaPreconf : hederaTestnet;
+  const client = createPublicClient({
+    chain,
+    transport: http(),
+  });
+
+  return await client.getBlock({ blockTag: 'pending' });
+}
+
+/**
+ * Get balance using pending block tag for instant updates
+ */
+export async function getPendingBalance(address: Address, network: 'base' | 'hedera' = 'base') {
+  const chain = network === 'base' ? baseSepoliaPreconf : hederaTestnet;
+  const client = createPublicClient({
+    chain,
+    transport: http(),
+  });
+
+  return await client.getBalance({ 
+    address, 
+    blockTag: 'pending' 
+  });
+}
+
+/**
+ * Get transaction count using pending block tag
+ */
+export async function getPendingTransactionCount(address: Address, network: 'base' | 'hedera' = 'base') {
+  const chain = network === 'base' ? baseSepoliaPreconf : hederaTestnet;
+  const client = createPublicClient({
+    chain,
+    transport: http(),
+  });
+
+  return await client.getTransactionCount({ 
+    address, 
+    blockTag: 'pending' 
+  });
+}

@@ -1,5 +1,16 @@
 import { getDefaultConfig } from '@rainbow-me/rainbowkit';
 import { base, baseSepolia } from 'wagmi/chains';
+import { http } from 'viem';
+
+// Base Sepolia Preconf (Flashblocks) Chain Config
+export const baseSepoliaPreconf = {
+  ...baseSepolia,
+  name: 'Base Sepolia (Flashblocks)',
+  rpcUrls: {
+    default: { http: ['https://sepolia-preconf.base.org'] },
+    public: { http: ['https://sepolia-preconf.base.org'] },
+  },
+} as const;
 
 // Hedera Testnet Chain Config
 export const hederaTestnet = {
@@ -25,7 +36,7 @@ export const config = getDefaultConfig({
   appName: 'LinkedOut',
   projectId: process.env.NEXT_PUBLIC_REOWN_PROJECT_ID || '',
   chains: [
-    baseSepolia,
+    baseSepoliaPreconf as any, // Base Sepolia with Flashblocks support
     base,
     hederaTestnet as any, // Custom chain
   ],

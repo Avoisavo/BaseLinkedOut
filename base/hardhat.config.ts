@@ -23,17 +23,13 @@ const MNEMONIC = process.env.MNEMONIC
 
 // If you prefer to be authenticated using a private key, set a PRIVATE_KEY environment variable
 const PRIVATE_KEY = process.env.PRIVATE_KEY
+const PRIVATE_KEY_HEDERA = process.env.PRIVATE_KEY_HEDERA
 
-const accounts: HttpNetworkAccountsUserConfig | undefined = MNEMONIC
-    ? { mnemonic: MNEMONIC }
-    : PRIVATE_KEY
-      ? [PRIVATE_KEY]
-      : undefined
-
-if (accounts == null) {
-    console.warn(
-        'Could not find MNEMONIC or PRIVATE_KEY environment variables. It will not be possible to execute transactions in your example.'
-    )
+const getAccounts = (network: string): HttpNetworkAccountsUserConfig | undefined => {
+    if (network === 'hedera-testnet') {
+        return PRIVATE_KEY_HEDERA ? [PRIVATE_KEY_HEDERA] : undefined
+    }
+    return PRIVATE_KEY ? [PRIVATE_KEY] : undefined
 }
 
 const config: HardhatUserConfig = {
@@ -59,13 +55,13 @@ const config: HardhatUserConfig = {
         'hedera-testnet': {
           eid: EndpointId.HEDERA_V2_TESTNET,
           url: process.env.RPC_URL_HEDERA || 'https://testnet.hashio.io/api',
-          accounts,
+          accounts: getAccounts('hedera-testnet'),
         },
         // another network you want to connect to
         'base-sepolia': {
           eid: EndpointId.BASESEP_V2_TESTNET,
           url: process.env.RPC_URL_BASE_SEPOLIA || 'https://sepolia.base.org',
-          accounts,
+          accounts: getAccounts('base-sepolia'),
           timeout: 120000,
         },
       },
