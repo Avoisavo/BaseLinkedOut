@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 
 interface TriggerPanelProps {
   isOpen: boolean;
@@ -12,7 +12,7 @@ interface TriggerOption {
   id: string;
   title: string;
   description: string;
-  icon: JSX.Element;
+  icon: React.ReactElement;
 }
 
 export default function TriggerPanel({ isOpen, onClose, onSelectTrigger }: TriggerPanelProps) {

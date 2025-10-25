@@ -235,6 +235,8 @@ export default function TestBridgePage() {
         abi: OFT_ABI,
         functionName: 'mint',
         args: [address, parseEther(mintAmount)],
+        chain: chain,
+        account: address!,
       });
 
       setTxHash(hash);
@@ -307,6 +309,8 @@ export default function TestBridgePage() {
         functionName: 'send',
         args: [sendParam, { nativeFee, lzTokenFee: BigInt(0) }, address],
         value: nativeFee,
+        chain: chain,
+        account: address!,
       });
 
       setTxHash(hash);

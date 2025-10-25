@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useEffect, MouseEvent as ReactMouseEvent, WheelEvent } from 'react';
+import { Suspense, useRef, useState, useEffect, MouseEvent as ReactMouseEvent, WheelEvent } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Header from '../../../component/Header';
 import TriggerPanel from './panel/TriggerPanel';
@@ -62,7 +62,7 @@ interface Node {
   };
 }
 
-export default function FlowPage() {
+function FlowPageContent() {
   const canvasRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -1356,6 +1356,14 @@ export default function FlowPage() {
         onSave={handleSaveIfElseConfig}
       />
     </div>
+  );
+}
+
+export default function FlowPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <FlowPageContent />
+    </Suspense>
   );
 }
 

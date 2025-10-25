@@ -141,11 +141,10 @@ export async function callContractReadFunction(
 
     const result = await client.readContract({
       address: contractAddress as Address,
-      abi: abi as Abi,
+      abi: abi as any,
       functionName,
       args,
-      blockTag: usePending ? 'pending' : 'latest',
-    });
+    } as any);
     
     return result;
   } catch (error) {
